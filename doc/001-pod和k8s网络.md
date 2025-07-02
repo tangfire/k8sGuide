@@ -5,7 +5,7 @@
 
 ## Traditional Deployment
 
-![000](./img/img.png)
+![000](../img/img.png)
 
 安全性问题：多个应用放在一个机器上，比如apache,mysql,nginx放在同一个机器上，万一apache被劫持，然后mysql与apache又在同一个物理机，mysql对应的数据目录就被分享出去，以此mysql数据泄露
 
@@ -17,7 +17,7 @@
 
 ## Virtualized Deployment
 
-![001](./img/img_1.png)
+![001](../img/img_1.png)
 
 
 提高了安全性，相对提高了资源利用率
@@ -28,7 +28,7 @@
 
 ## Container Deployment
 
-![002](./img/img_2.png)
+![002](../img/img_2.png)
 
 
 对比传统虚拟机的方式，安全性下降，但还是越过了及格线，少了底层操作系统的开销，资源利用率远远高于传统虚拟化
@@ -36,11 +36,11 @@
 
 # 基础设施的迭代 - 集群场景 - IAAS
 
-![003](./img/img_3.png)
+![003](../img/img_3.png)
 
 # 基础设施的迭代 - 集群场景 - PAAS
 
-![004](./img/img_4.png)
+![004](../img/img_4.png)
 
 # 基础设施的迭代 - 集群场景 - SAAS
 
@@ -49,27 +49,27 @@
 # 平台对比 - PAAS
 
 
-![005](./img/img_5.png)
+![005](../img/img_5.png)
 
 # Kubernetes 优势
 
-![006](./img/img_6.png)
+![006](../img/img_6.png)
 
 
 
 # 平台支持的规模数量
 
-![007](./img/img_7.png)
+![007](../img/img_7.png)
 
 # 那些前辈们
 
-![008](./img/img_8.png)
+![008](../img/img_8.png)
 
 
 # Kubernetes-宏观架构
 
 
-![009](./img/img_9.png)
+![009](../img/img_9.png)
 
 Master节点数量一般是3,5,7,9 大于1的奇数个
 Node节点数量无所谓，实际运行任务的节点
@@ -77,7 +77,7 @@ Node节点数量无所谓，实际运行任务的节点
 
 # Kubernetes-微观架构
 
-![010](./img/img_10.png)
+![010](../img/img_10.png)
 
 
 通过k8s可以将数以千计的物理机组成成一个大集群，我们如果想运行应用，只需要向这个大集群发送请求，它就可以自动帮我们选择位于哪一个节点去部署对应的容器
@@ -106,11 +106,11 @@ controller manager定期检查集群运行状态是否跟预期相符
 
 # Restful
 
-![011](./img/img_11.png)
+![011](../img/img_11.png)
 
 # Kubernetes - 组件、插件、附件
 
-![012](./img/img_12.png)
+![012](../img/img_12.png)
 
 
 ## 插件
@@ -238,11 +238,11 @@ Kubernetes 插件是集群能力的“乐高积木”，通过灵活组合可构
 
 最小部署模块
 
-![013](./img/img_13.png)
+![013](../img/img_13.png)
 
 ## Pause特性
 
-![014](./img/img_14.png)
+![014](../img/img_14.png)
 
 在 Kubernetes 中，**Pause 容器**（也称为 `infra` 容器）是一个特殊的轻量级容器，它是每个 Pod 的基础设施容器，负责创建并维护 Pod 的共享环境。以下是它的核心作用和工作原理：
 
@@ -340,7 +340,7 @@ Pause 容器是 Kubernetes Pod 的"隐形守护者"，它通过共享命名空�
 
 ## 其他容器特性
 
-![015](./img/img_15.png)
+![015](../img/img_15.png)
 
 在 Kubernetes 中，**Pause 容器**（也称为 "Pod 基础设施容器"）是一个特殊的容器，它为 Pod 内的其他容器提供共享的命名空间环境。以下是 Pause 容器中 `network`、`pid` 和 `ipc` 命名空间的详细解释：
 
@@ -441,7 +441,7 @@ ls -l /proc/$PAUSE_PID/ns/
 
 ## 基本概述
 
-![016](./img/img_16.png)
+![016](../img/img_16.png)
 
 
 在 Kubernetes 中，**扁平网络（Flat Network）** 是一种网络模型设计目标，旨在让集群中的所有 Pod、Service 和节点能够像在同一个局域网（LAN）中一样直接通信，无需经过复杂的 NAT 或路由转换。以下是详细解析：
@@ -531,57 +531,57 @@ Kubernetes 的扁平网络设计是容器编排的核心基础，它通过 CNI �
 
 ## Kubernetes - 网络模型原则
 
-![017](./img/img_17.png)
+![017](../img/img_17.png)
 
 ## CNI-1
 
-![018](./img/img_18.png)
+![018](../img/img_18.png)
 
 ## CNI-2
 
-![019](./img/img_19.png)
+![019](../img/img_19.png)
 
 ## CNI-3
 
-![020](./img/img_20.png)
+![020](../img/img_20.png)
 
 
 ## CNI-4
 
-![021](./img/img_21.png)
+![021](../img/img_21.png)
 
 ## CNI-5
 
 
-![022](./img/img_22.png)
+![022](../img/img_22.png)
 
 ## Kubernetes-网络插件
 
-![023](./img/img_23.png)
+![023](../img/img_23.png)
 
 ## Kubernetes-人气数据
 
-![024](./img/img_24.png)
+![024](../img/img_24.png)
 
 
 
 ## Kubernetes-功能说明
 
-![025](./img/img_25.png)
+![025](../img/img_25.png)
 
 
 ## 网络模型
 
-![026](./img/img_26.png)
+![026](../img/img_26.png)
 
 ## 举例-underlay
 
-![027](./img/img_27.png)
+![027](../img/img_27.png)
 
 
 ## 举例-overlay
 
-![028](./img/img_28.png)
+![028](../img/img_28.png)
 
 
 
@@ -727,26 +727,394 @@ Calico 是 Kubernetes 生产环境的首选网络方案之一，尤其适合需�
 
 ## calico-架构
 
-![029](./img/img_29.png)
+
+
+Calico 是一个广泛使用的 Kubernetes 网络和网络安全解决方案，它提供高性能、可扩展、基于 IP 的网络架构，支持网络策略控制、路由、以及多种底层数据面（如 BGP、VXLAN、eBPF 等）。
+
+---
+
+## 🔷 Calico 架构概览
+
+Calico 架构由以下几个核心组件构成：
+
+![029](../img/img_29.png)
+
+
+---
+
+## 🔹 1. `calico-node`（DaemonSet）
+
+这是运行在每个 Node 上的主要组件，通常以 DaemonSet 方式部署，包含：
+
+* `Felix`（核心网络代理，负责配置 Linux 网络栈、防火墙规则）
+* `BIRD` 或 GoBGP（当使用 BGP 模式时，用于路由通告）
+* `confd`（根据 etcd/K8s 生成配置）
+
+---
+
+## 🔹 2. **Felix**
+
+> Calico 的核心代理，运行在每个节点上。
+
+职责包括：
+
+* 管理 Pod 网络接口（veth）
+* 设置路由规则（静态路由、BGP 或 VXLAN）
+* 实现 Kubernetes 网络策略（用 iptables、eBPF）
+* 监视 K8s API 或 etcd 中的 Calico 配置变化
+* 管理 NAT、策略、IP 池等配置
+
+---
+
+## 🔹 3. **BGP / VXLAN / IPIP（数据面）**
+
+Calico 可以在不同网络模式下工作：
+
+| 模式               | 描述                                                         |
+| ---------------- | ---------------------------------------------------------- |
+| **BGP 模式（默认推荐）** | 每个节点作为一个 BGP peer，通告其 Pod IP 段给其他节点，实现三层互通。需要底层网络支持 IP 路由。 |
+| **VXLAN 模式**     | 使用 VXLAN 隧道封装 Pod 数据包，适合底层网络不支持 BGP 或不能互通的环境。              |
+| **IPIP 模式**      | 类似 VXLAN，但使用 IP-in-IP 封装。                                  |
+| **eBPF 模式**      | 性能更高，支持无 iptables 的网络策略实现，只在特定内核和发行版支持。                    |
+
+---
+
+## 🔹 4. **Typha（可选）**
+
+> 用于大规模集群中优化 Calico 和 Kubernetes API 的通信。
+
+* 在大规模集群中，所有 `calico-node` 与 API Server 通信会产生瓶颈；
+* `Typha` 作为中间代理，缓解 API 压力；
+* 每个节点连接到 Typha，而不是直接连接 API Server；
+
+---
+
+## 🔹 5. **Calico 控制平面 / 数据存储**
+
+Calico 使用以下方式之一存储网络策略、IPAM 等信息：
+
+* Kubernetes API（CRD）
+* etcd（已较少使用）
+
+通常使用 Kubernetes CRD 模式，不需要独立 etcd 集群。
+
+---
+
+## 🔹 6. **网络策略（CalicoPolicy / NetworkPolicy）**
+
+Calico 支持：
+
+* Kubernetes `NetworkPolicy`
+* Calico 自定义策略 `GlobalNetworkPolicy`, `NetworkPolicy`（更丰富，比如 DNS、FQDN、全局作用域等）
+
+策略生效由 Felix 实现，使用 iptables、eBPF 或 nftables 来强制执行。
+
+---
+
+## 🔚 总结一句话：
+
+> **Calico 是一个插件化、灵活、面向三层 IP 网络的 Kubernetes 网络解决方案，核心组件是 Felix，支持多种数据面（BGP、VXLAN、eBPF），可扩展性好，安全策略强大，适用于大中型集群。**
+
+
+
+
 
 
 
 ## calico - 架构 - VXLAN - 1
 
-![030](./img/img_30.png)
+![030](../img/img_30.png)
 
 ## calico - 架构 - VXLAN - 2
 
-![031](./img/img_31.png)
+![031](../img/img_31.png)
 
 
 ## calico - 架构 - VXLAN - 3
 
 
-![032](./img/img_32.png)
+![032](../img/img_32.png)
 
 ## calico - 架构 - VXLAN - 4
 
-![033](./img/img_33.png)
+![033](../img/img_33.png)
+
+这段话是对 **VXLAN（Virtual Extensible LAN）** 工作机制和其在 Kubernetes 网络中的应用做了简要说明，下面我来逐段解释清楚它的意思：
+
+---
+
+## 🔹什么是 VXLAN？
+
+VXLAN 是一种通过 UDP 协议封装二层数据帧，使得虚拟机或容器网络可以跨三层网络（L3）互通的技术。它本质上是一种「将二层网络封装在三层网络中」的隧道技术。
+
+---
+
+## 🔸1. 数据包封包过程说明：
+
+> **“封包，在 vxlan 设备上将 pod 发来的数据包源、目的 MAC 替换为本机 vxlan 网卡和对端节点 vxlan 网卡的 MAC。外层 UDP 目的 IP 地址根据路由和对端 vxlan 的 MAC 查 fdb 表获取。”**
+
+### 意思如下：
+
+1. Pod 发出数据包，本来是发给同一子网的另一个 Pod（目标 MAC 是另一个 Pod 的）。
+2. 但因为目标 Pod 在另一个节点上，所以不能直接二层通信。
+3. VXLAN 设备（比如 Linux 的 `vxlan0` 虚拟网卡）会进行**封包**（Encapsulation）：
+
+  * 把原始的二层数据帧封装进一个新的数据包里。
+  * 替换源 MAC 和目的 MAC 为「本机 vxlan 网卡 MAC」和「对端节点 vxlan 网卡 MAC」。
+  * 外层数据包是一个 UDP 包，目的 IP 是目标节点的 IP 地址，端口是 VXLAN 默认的 4789。
+  * 外层 UDP 包通过查 FDB（Forwarding Database） 表，找出目标节点 IP 对应的 vxlan 设备 MAC。
+
+---
+
+## 🔸2. VXLAN 的优势
+
+> **“只要 k8s 节点间三层互通，可以跨网段，对主机网关路由没有特殊要求。各个 node 节点通过 vxlan 设备实现基于三层的‘二层’互通。”**
+
+### 核心优点是：
+
+* **跨三层网络通信：** Pod 网络可以跨不同的子网（比如 Node A 是 10.0.0.1，Node B 是 192.168.1.1）通信。
+* **对物理网络要求低：** 不要求物理网络具备统一的二层网络，**只要节点之间能通 IP（L3 可达）就可以**。
+* **逻辑上的二层网络：** 封包后的 UDP 数据包，在目标节点上会被解包，还原出原始的 MAC 数据包，实现类似于「二层广播域」的效果。
+* **K8s 节点之间通过 VXLAN 实现虚拟二层网络通信。**
+
+---
+
+## 🔸3. VXLAN 的缺点
+
+> **“需要进行 vxlan 的数据包封包和解包会存在一定的性能损耗。”**
+
+### 换句话说：
+
+* 每个 Pod 的数据包都要经过：
+
+  * 封装（加上新的 UDP、IP、MAC 头）；
+  * 解封装（接收到后剥掉外层头）；
+* 这增加了 **CPU 开销和网络延迟**；
+* VXLAN 是纯软件实现时（没有 DPDK、硬件加速），**性能会明显比直接用主机网络或者 host-gw 模式低**。
+
+---
+
+## 🔚 总结一句话：
+
+VXLAN 是一种通过在 UDP 中封装二层帧来实现跨三层网络通信的技术，它在 K8s 网络插件（如 Flannel 的 VXLAN 模式）中被广泛应用。它的好处是简单灵活，跨网段无压力，但性能比 host-gw、直连等方式要差一些。
+
+
+
+## calico - 架构 - VXLAN - 5
+
+![034](../img/img_34.png)
+
+
+## calico - 架构 - IPIP - 1
+
+![035](../img/img_35.png)
+
+## calico - 架构 - IPIP - 2
+
+![036](../img/img_36.png)
+
+
+## calico - 架构 - IPIP - 3
+
+![037](../img/img_37.png)
+
+## calico - 架构 - IPIP - 4
+
+
+![038](../img/img_38.png)
+
+
+## calico - 架构 - IPIP - 5
+
+![039](../img/img_39.png)
+
+## calico - 架构 - BGP - 1
+
+![040](../img/img_40.png)
+
+## calico - 架构 - BGP - 2
+
+![041](../img/img_41.png)
+
+## calico - 架构 - BGP - 3
+
+![042](../img/img_42.png)
+
+
+
+## calico - 架构 - BGP - 4
+
+![043](../img/img_43.png)
+
+
+## 总结
+
+VXLAN、IPIP 和 BGP —— 它们是 Kubernetes 容器网络中（如 Calico、Flannel）常用的三种 **数据平面（Data Plane）封装或通信机制**，用于实现 Pod 跨节点通信。
+
+---
+
+# 🔷 一、VXLAN（Virtual eXtensible LAN）
+
+## 📌 概述：
+
+* VXLAN 是一种隧道封装协议。
+* 它通过 **UDP 封装二层以太网帧**，从而使虚拟机/容器跨三层网络进行通信。
+* 典型的 UDP 端口是 **4789**。
+
+---
+
+## ✅ 特点：
+
+| 项目       | 描述                                                      |
+| -------- | ------------------------------------------------------- |
+| 封装类型     | 二层以太网帧封装进 UDP 数据包                                       |
+| 可跨网络     | 是，允许 Pod/VM 跨子网通信                                       |
+| MAC 可见   | 是，模拟二层网络，封装保留 MAC 信息                                    |
+| 端口       | UDP 4789                                                |
+| VXLAN ID | 支持 24 位的 VNI（VXLAN Network Identifier），最多支持 1600 万个虚拟网络 |
+| 性能       | 软件封装，开销较高，eBPF/VXLAN offload 可优化                        |
+
+---
+
+## 📦 封装结构：
+
+```
+[原始 Ethernet 帧]
+    ↓
+[UDP Header + IP Header + VXLAN Header + Ethernet Payload]
+```
+
+### 示例结构：
+
+```
+| Outer Ethernet | Outer IP | UDP | VXLAN Header | Inner Ethernet | IP | TCP | Payload |
+```
+
+---
+
+## 📉 缺点：
+
+* 需要封装和解封装，**性能比纯路由（BGP）差**。
+* 需要维护 vxlan FDB（Forwarding DB），用于查找对端 VXLAN 网卡的 MAC 地址。
+* 一些传统网络设备对 VXLAN 支持有限（在裸金属环境部署需要额外配置）。
+
+---
+
+## 📦 应用场景：
+
+* **Calico VXLAN 模式**（适合无 BGP 网络）
+* **Flannel VXLAN 模式**
+* **Kube-OVN VXLAN 模式**
+
+---
+
+# 🔷 二、IPIP（IP-in-IP）
+
+## 📌 概述：
+
+* IPIP 是一种轻量的三层封装协议。
+* 它将原始 IP 包再次封装成一个 **外层 IP 包**，实现节点间 IP 层隧道。
+* 使用协议号 **4**（而不是 UDP/TCP 端口）。
+
+---
+
+## ✅ 特点：
+
+| 项目     | 描述                    |
+| ------ | --------------------- |
+| 封装类型   | IP 包封装进 IP 包（不保留 MAC） |
+| 可跨网络   | 是，基于 L3 路由            |
+| MAC 可见 | 否，纯 IP 封装             |
+| 端口     | 无，协议号 4               |
+| 性能     | 开销小于 VXLAN，但仍有封装开销    |
+
+---
+
+## 📦 封装结构：
+
+```
+[Outer IP Header]
+    ↓
+[Inner IP Header + Payload]
+```
+
+---
+
+## 📉 缺点：
+
+* 和 VXLAN 一样，封装/解封装有开销。
+* 某些云平台（如 AWS）禁用了 IPIP 协议，或者需要专门开启。
+* 不支持 MAC 地址传递（与 VXLAN 相比）。
+
+---
+
+## 📦 应用场景：
+
+* **Flannel 的 IPIP 模式**
+* **Calico 的 IPIP 模式**（现在较少使用，官方建议改用 VXLAN）
+
+---
+
+# 🔷 三、BGP（Border Gateway Protocol）
+
+## 📌 概述：
+
+* BGP 是一种 **路径向量路由协议**，用于在自治系统（AS）之间通告网络前缀。
+* 在 Kubernetes 网络中，BGP 可用于让每个节点将其本地 Pod 网段通告给其他节点，实现三层路由。
+
+---
+
+## ✅ 特点：
+
+| 项目    | 描述                  |
+| ----- | ------------------- |
+| 封装类型  | 无，**原始 IP 路由**      |
+| 性能    | **高（无封装）**          |
+| 网络要求  | 节点间 IP 路由可达（更复杂）    |
+| 配置复杂度 | 较高，需要配置 Peer、AS 号等  |
+| 通用性   | 需要底层网络设备支持 BGP 或可直连 |
+
+---
+
+## 📦 通信逻辑：
+
+1. 每个节点有一段 Pod CIDR，例如 `10.244.1.0/24`；
+2. Calico 的 BGP agent（如 BIRD 或 GoBGP）在节点上运行；
+3. 通过 BGP，每个节点向其他节点通告自己的 Pod 网络；
+4. 所有节点建立 BGP peer，会收到所有其他节点的 Pod 网络路由；
+5. Felix 配置 Linux 的路由表，使 Pod 到 Pod 的流量通过物理网络直接三层转发。
+
+---
+
+## 📉 缺点：
+
+* 配置复杂度高，尤其在多云/裸机环境；
+* 如果物理网络设备或云平台不支持 BGP，就无法使用；
+* 不适用于节点 IP 不固定的情况。
+
+---
+
+## 📦 应用场景：
+
+* **Calico BGP 模式**（高性能、数据中心友好）
+* **裸金属集群或私有云**
+* **对网络延迟和性能要求极高的系统**
+
+---
+
+# ✅ 总结对比表：
+
+| 特性       | VXLAN        | IPIP     | BGP（无封装）     |
+| -------- | ------------ | -------- | ------------ |
+| 封装类型     | UDP + 二层以太网帧 | IP-in-IP | 无封装（原始路由）    |
+| 封装协议/端口  | UDP 4789     | 协议号 4    | 使用 BGP 通告路由  |
+| 性能       | 中等（需封装）      | 较好（轻封装）  | **高（无封装）**   |
+| 配置复杂度    | 低            | 低        | **高（需配置路由）** |
+| 跨网段能力    | ✅            | ✅        | ✅            |
+| MAC 可见性  | 是（模拟二层）      | 否        | 否            |
+| 云平台支持    | ✅            | ❌（部分不支持） | ❌（复杂）        |
+| Calico支持 | ✅（推荐）        | ✅（已次选）   | ✅（高性能模式）     |
+
+---
 
 
