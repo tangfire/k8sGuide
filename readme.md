@@ -28,6 +28,11 @@
 
 ![072](./img/img_72.png)
 
+- RC控制器：保障当前的Pod数量与期望值一致
+
+
+### RC控制器
+
 #### 1.rc.yaml
 
 ```yaml
@@ -150,6 +155,33 @@ rc-demo-tm88g   1/1     Running   0          17s   app=rc-demo
 ```
 
 
+
+### RS控制器
+
+```yaml
+apiVersion: apps/v1
+kind: ReplicaSet
+metadata:
+  name: rs-ml-demo
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: rs-ml-demo
+  template:
+    metadata:
+      labels:
+        app: rs-ml-demo
+    spec:
+      containers:
+      - name: rs-ml-demo-container
+        image: nginx:1.25  
+        env:
+        - name: GET_HOSTS_FROM
+          value: dns
+        ports:
+        - containerPort: 80
+```
 
 
 
