@@ -328,6 +328,11 @@ rs-me-in-demo-fnk5q       1/1     Running   0          6m24s   app=spring-k8s
 
 ![074](./img/img_74.png)
 
+- 支持了声明式表达
+- 支持滚动更新和回滚
+- 原理：deployment > RS > pod
+
+
 #### 滚动升级和回滚应用
 
 Kubernetes Deployment 的 **滚动升级（Rolling Update）** 和 **回滚（Rollback）** 功能，这是 Deployment 管理应用更新的核心优势。
@@ -683,6 +688,116 @@ kubectl get pod
 ![079](./img/img_79.png)
 
 
+
+---
+
+### **1. 创建 Deployment 并记录历史**
+```bash
+kubectl create -f deployment.yaml --record
+```
+- **作用**：  
+  通过 YAML 文件创建 Deployment，`--record` 参数会记录当前命令到修订历史中。
+- **关键点**：
+    - 后续可通过 `kubectl rollout history deployment/nginx-deployment` 查看每次变更的命令记录。
+    - 适用于需要审计或回滚的场景。
+
+---
+
+### **2. 手动扩缩容**
+```bash
+kubectl scale deployment nginx-deployment --replicas 10
+```
+- **作用**：  
+  将 `nginx-deployment` 的 Pod 副本数调整为 10 个。
+- **典型场景**：
+    - 应对流量突发，快速增加实例数。
+    - 与自动扩缩容（HPA）互补，手动调整更直接。
+
+---
+
+### **3. 配置自动扩缩容（HPA）**
+```bash
+kubectl autoscale deployment nginx-deployment --min=10 --max=15 --cpu-percent=80
+```
+- **作用**：  
+  创建 Horizontal Pod Autoscaler (HPA)，根据 CPU 使用率自动调整 Pod 数量：
+    - **`--min=10`**：最少 10 个副本
+    - **`--max=15`**：最多 15 个副本
+    - **`--cpu-percent=80`**：CPU 使用率达 80% 时触发扩容。
+- **注意事项**：
+    - 需确保 Deployment 配置了 `resources.requests.cpu`，否则 HPA 无法计算资源使用率。
+
+---
+
+### **4. 更新容器镜像**
+```bash
+kubectl set image deployment/nginx-deployment nginx-deployment-container=wangyanglinux/myapp:v2.0
+```
+- **作用**：  
+  将 `nginx-deployment` 中名为 `nginx-deployment-container` 的容器镜像更新为 `wangyanglinux/myapp:v2.0`。
+- **底层机制**：
+    - 触发滚动更新（RollingUpdate），逐步替换旧版本 Pod。
+    - 更新过程可通过 `kubectl rollout status deployment/nginx-deployment` 监控。
+
+---
+
+### **5. 回滚 Deployment**
+```bash
+kubectl rollout undo deployment/nginx-deployment
+```
+- **作用**：  
+  回滚到上一个修订版本（rollback）。
+- **扩展操作**：
+    - 回滚到指定版本：
+      ```bash
+      kubectl rollout undo deployment/nginx-deployment --to-revision=2
+      ```
+    - 查看历史版本：
+      ```bash
+      kubectl rollout history deployment/nginx-deployment
+      ```
+
+---
+
+### **命令之间的关系**
+1. **创建时记录历史**（`--record`）→ **便于后续回滚**（`rollout undo`）。
+2. **手动扩缩容**（`scale`）和 **自动扩缩容**（`autoscale`）可结合使用。
+3. **镜像更新**（`set image`）会生成新修订版本，回滚时依赖历史记录。
+
+---
+
+### **完整操作流程示例**
+```bash
+# 1. 创建 Deployment（记录命令）
+kubectl create -f deployment.yaml --record
+
+# 2. 手动扩容到 10 个副本
+kubectl scale deployment nginx-deployment --replicas=10
+
+# 3. 设置自动扩缩容
+kubectl autoscale deployment nginx-deployment --min=10 --max=15 --cpu-percent=80
+
+# 4. 更新镜像（触发滚动更新）
+kubectl set image deployment/nginx-deployment nginx=nginx:1.25
+
+# 5. 发现新版本有问题，立即回滚
+kubectl rollout undo deployment/nginx-deployment
+```
+
+---
+
+### **总结**
+| 命令                | 核心功能                     | 常用参数                     |
+|---------------------|----------------------------|----------------------------|
+| `create --record`   | 创建资源并记录命令           | `--record`                 |
+| `scale`             | 手动调整副本数               | `--replicas`              |
+| `autoscale`         | 自动扩缩容                   | `--min`/`--max`/`--cpu-percent` |
+| `set image`         | 更新镜像触发部署             | `deployment/容器名=新镜像`  |
+| `rollout undo`      | 回滚到上一版本               | `--to-revision`           |
+
+这些命令是 Kubernetes 日常运维的核心工具，熟练掌握后可高效管理应用生命周期。
+
+
 #### Deployment
 
 ```yaml
@@ -717,6 +832,1251 @@ spec:
   - -f 基于文件创建，如果目标对象与文件本身发生改变，那么会根据文件的指定一一修改目标对象的属性（部分更新）
 - replace 创建资源对象、修改资源对象
   - -f 基于文件创建，如果目标对象与文件本身发生改变，那么会重建此对象（替换)
+
+
+### pod控制器 - Deployment - 更新策略 - 1
+
+![080](./img/img_80.png)
+
+### pod控制器 - Deployment - 更新策略 - 2
+
+
+![081](./img/img_81.png)
+
+
+
+
+### pod控制器 - Deployment - 金丝雀部署 - 1
+
+
+![082](./img/img_82.png)
+
+
+> 理念：用极小的版本数量去测试当前代码的稳定性
+
+
+
+### **Kubernetes 金丝雀部署（Canary Deployment）完整案例**
+
+本案例将演示如何通过 Kubernetes 的 **Deployment + Service + Ingress** 实现金丝雀发布，逐步将流量从旧版本（v1）切换到新版本（v2）。
+
+---
+
+#### **1. 实验环境准备**
+- Kubernetes 集群（Minikube 或云服务）
+- `kubectl` 命令行工具
+- Nginx Ingress Controller（已安装）
+
+---
+
+#### **2. 部署初始版本（v1）**
+##### **2.1 创建 v1 版本的 Deployment**
+```yaml
+# v1-deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: myapp-v1
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: myapp
+      version: v1
+  template:
+    metadata:
+      labels:
+        app: myapp
+        version: v1
+    spec:
+      containers:
+      - name: nginx
+        image: nginx:1.25  # 初始版本
+        ports:
+        - containerPort: 80
+```
+
+##### **2.2 创建 Service（统一流量入口）**
+```yaml
+# service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: myapp-service
+spec:
+  selector:
+    app: myapp  # 同时选择 v1 和 v2 的 Pod
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 80
+```
+
+##### **2.3 部署并验证**
+```bash
+kubectl apply -f v1-deployment.yaml -f service.yaml
+kubectl get pods -l app=myapp  # 应看到 3 个 v1 Pod
+```
+
+---
+
+#### **3. 金丝雀发布新版本（v2）**
+##### **3.1 部署 v2 版本（少量 Pod）**
+```yaml
+# v2-deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: myapp-v2
+spec:
+  replicas: 1  # 仅启动 1 个 Pod（占总流量的 25%）
+  selector:
+    matchLabels:
+      app: myapp
+      version: v2
+  template:
+    metadata:
+      labels:
+        app: myapp
+        version: v2
+    spec:
+      containers:
+      - name: nginx
+        image: nginx:1.26  # 新版本
+        ports:
+        - containerPort: 80
+```
+
+##### **3.2 应用变更**
+```bash
+kubectl apply -f v2-deployment.yaml
+kubectl get pods -l app=myapp  # 应看到 3 个 v1 + 1 个 v2
+```
+
+---
+
+#### **4. 配置 Ingress 流量分割**
+##### **4.1 创建 Ingress 规则（基于权重路由）**
+```yaml
+# ingress.yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: myapp-ingress
+  annotations:
+    nginx.ingress.kubernetes.io/canary: "true"
+    nginx.ingress.kubernetes.io/canary-weight: "25"  # 25% 流量到 v2
+spec:
+  rules:
+  - host: myapp.example.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: myapp-service
+            port:
+              number: 80
+```
+
+##### **4.2 启用 Ingress**
+```bash
+kubectl apply -f ingress.yaml
+```
+
+---
+
+#### **5. 验证金丝雀发布**
+##### **5.1 测试流量分配**
+```bash
+# 本地 hosts 添加解析（或使用 curl 的 --resolve 参数）
+echo "服务器IP myapp.example.com" >> /etc/hosts
+
+# 多次访问观察版本分布
+curl http://myapp.example.com
+```
+- **预期结果**：约 25% 请求返回 `nginx:1.26`（v2），其余返回 `nginx:1.25`（v1）。
+
+##### **5.2 监控与扩缩**
+```bash
+# 查看 Pod 日志
+kubectl logs -l version=v2 --tail=50
+
+# 若 v2 运行稳定，逐步扩大比例
+kubectl patch ingress myapp-ingress -p '{"metadata":{"annotations":{"nginx.ingress.kubernetes.io/canary-weight":"50"}}}'
+```
+
+---
+
+#### **6. 完成全量发布**
+##### **6.1 将 v2 扩缩至 100%**
+```bash
+# 修改 Ingress 权重为 100%
+kubectl patch ingress myapp-ingress -p '{"metadata":{"annotations":{"nginx.ingress.kubernetes.io/canary-weight":"100"}}}'
+
+# 删除 v1 Deployment
+kubectl delete deployment myapp-v1
+```
+
+---
+
+### **关键点总结**
+| 步骤               | 操作要点                                                                 |
+|--------------------|--------------------------------------------------------------------------|
+| **初始部署**       | 创建 v1 Deployment 和 Service                                            |
+| **金丝雀发布**     | 部署少量 v2 Pod，通过 Ingress 权重控制流量                               |
+| **验证**           | 使用 `curl` 测试流量分配比例                                             |
+| **全量发布**       | 逐步调整权重至 100%，最终删除旧版本                                      |
+
+### **扩展实验**
+1. **基于 Header 的金丝雀**：  
+   添加注解 `nginx.ingress.kubernetes.io/canary-by-header: "X-Canary"`，仅对特定 Header 请求发送到 v2。
+2. **自动回滚**：  
+   结合 Prometheus 监控，若 v2 错误率超过阈值，自动将权重降为 0。
+
+通过此案例，您可以完整体验金丝雀发布的流程和原理！
+
+
+### pod控制器 - Deployment - 回滚命令
+
+
+![083](./img/img_83.png)
+
+
+
+---
+
+### **1. 查看部署状态 & 返回值**
+```bash
+kubectl rollout status deployment/nginx-deployment
+echo $?
+```
+- **作用**：
+    - 检查 `nginx-deployment` 的滚动更新状态（如是否完成、是否卡住）。
+    - `echo $?` 显示上一条命令的退出状态码：
+        - `0`：成功（部署已完成且所有 Pod 就绪）。
+        - `非0`：失败（需结合日志排查）。
+- **输出示例**：
+  ```bash
+  Waiting for rollout to finish: 2 out of 3 new replicas have been updated...
+  ```
+
+---
+
+### **2. 查看部署历史**
+```bash
+kubectl rollout history deployment/nginx-deployment
+```
+- **作用**：  
+  显示 `nginx-deployment` 的所有修订版本（revision），包括：
+    - 版本号（如 `revision 1`、`revision 2`）。
+    - 触发变更的命令（若创建时使用了 `--record`）。
+- **输出示例**：
+  ```bash
+  REVISION  CHANGE-CAUSE
+  1         kubectl apply --filename=deploy.yaml --record=true
+  2         kubectl set image deployment/nginx-deployment nginx=nginx:1.25
+  ```
+
+---
+
+### **3. 回滚到指定版本**
+```bash
+kubectl rollout undo deployment/nginx-deployment --to-revision=2
+```
+- **作用**：  
+  将 `nginx-deployment` 回退到历史版本 `2`（如从有问题的 `nginx:1.26` 回滚到稳定的 `nginx:1.25`）。
+- **底层机制**：
+    - Kubernetes 会重新应用修订版本 `2` 的配置，触发滚动更新。
+- **注意事项**：
+    - 回滚后，原历史记录仍保留，但会生成新记录（如 `revision 3` 为回滚操作）。
+
+---
+
+### **4. 暂停部署**
+```bash
+kubectl rollout pause deployment/nginx-deployment
+```
+- **作用**：  
+  暂停 `nginx-deployment` 的滚动更新（如临时停止自动扩容或镜像更新）。
+- **典型场景**：
+    - 分阶段发布时，先暂停部署，手动验证金丝雀版本后再继续。
+- **恢复命令**：
+  ```bash
+  kubectl rollout resume deployment/nginx-deployment
+  ```
+
+---
+
+### **命令之间的关系**
+1. **查看历史**（`history`）→ **选择回滚版本** → **执行回滚**（`undo`）。
+2. **暂停**（`pause`）和 **恢复**（`resume`）用于控制更新流程。
+3. **状态检查**（`status`）用于监控操作结果。
+
+---
+
+### **完整操作流程示例**
+```bash
+# 1. 发现当前版本有问题，先暂停部署
+kubectl rollout pause deployment/nginx-deployment
+
+# 2. 查看历史版本，确认稳定版本号
+kubectl rollout history deployment/nginx-deployment
+
+# 3. 回滚到 revision 2
+kubectl rollout undo deployment/nginx-deployment --to-revision=2
+
+# 4. 监控回滚状态
+kubectl rollout status deployment/nginx-deployment
+
+# 5. 验证无误后，恢复自动更新（如需）
+kubectl rollout resume deployment/nginx-deployment
+```
+
+---
+
+### **总结**
+| 命令                          | 核心功能                     | 常用参数                  |
+|-------------------------------|----------------------------|--------------------------|
+| `rollout status`             | 检查部署状态               | -                        |
+| `rollout history`            | 查看修订历史               | -                        |
+| `rollout undo --to-revision` | 回滚到指定版本             | `--to-revision=<版本号>` |
+| `rollout pause`              | 暂停更新                   | -                        |
+
+这些命令是 Kubernetes 部署管理的核心工具，尤其适用于 CI/CD 流水线中的版本控制和故障恢复。
+
+
+
+
+### pod控制器 - Deployment - 清理策略
+
+
+![084](./img/img_84.png)
+
+
+### ks8 yaml模版
+
+在 Kubernetes 中，`kubectl run` 命令用于快速创建单次运行的 Pod 或 Deployment。如果您想生成 YAML 格式的配置（而不是直接创建资源），可以结合 `--dry-run=client` 和 `-o yaml` 参数。以下是具体用法和示例：
+
+---
+
+### **1. 生成 Pod 的 YAML 配置**
+```bash
+kubectl run mypod --image=nginx:1.25 --port=80 --dry-run=client -o yaml
+```
+**输出示例**：
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  creationTimestamp: null
+  labels:
+    run: mypod
+  name: mypod
+spec:
+  containers:
+  - image: nginx:1.25
+    name: mypod
+    ports:
+    - containerPort: 80
+    resources: {}
+  dnsPolicy: ClusterFirst
+  restartPolicy: Always
+status: {}
+```
+
+---
+
+### **2. 生成 Deployment 的 YAML 配置**
+```bash
+kubectl run mydeploy --image=nginx:1.25 --port=80 --dry-run=client -o yaml --replicas=3
+```
+**输出示例**：
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  creationTimestamp: null
+  labels:
+    run: mydeploy
+  name: mydeploy
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      run: mydeploy
+  strategy: {}
+  template:
+    metadata:
+      creationTimestamp: null
+      labels:
+        run: mydeploy
+    spec:
+      containers:
+      - image: nginx:1.25
+        name: mydeploy
+        ports:
+        - containerPort: 80
+        resources: {}
+status: {}
+```
+
+---
+
+### **3. 生成 Job 的 YAML 配置**
+```bash
+kubectl run myjob --image=busybox --dry-run=client -o yaml -- /bin/sh -c "sleep 30"
+```
+**输出示例**：
+```yaml
+apiVersion: batch/v1
+kind: Job
+metadata:
+  creationTimestamp: null
+  labels:
+    run: myjob
+  name: myjob
+spec:
+  template:
+    metadata:
+      creationTimestamp: null
+      labels:
+        run: myjob
+    spec:
+      containers:
+      - args:
+        - /bin/sh
+        - -c
+        - sleep 30
+        image: busybox
+        name: myjob
+        resources: {}
+      restartPolicy: OnFailure
+status: {}
+```
+
+---
+
+### **关键参数说明**
+| 参数                  | 作用                                                                 |
+|-----------------------|----------------------------------------------------------------------|
+| `--dry-run=client`    | 仅模拟运行，不实际创建资源                                           |
+| `-o yaml`             | 输出 YAML 格式的配置                                                 |
+| `--image`             | 指定容器镜像                                                         |
+| `--port`              | 声明容器暴露的端口                                                   |
+| `--replicas`          | 指定 Deployment 的副本数（默认为 1）                                 |
+| `-- /bin/sh -c "..."` | 覆盖容器的启动命令（用于 Job/CronJob）                                |
+
+---
+
+### **使用建议**
+1. **保存到文件**：  
+   将生成的 YAML 保存到文件后进一步编辑：
+   ```bash
+   kubectl run mypod --image=nginx --dry-run=client -o yaml > pod.yaml
+   ```
+
+2. **直接创建资源**：  
+   去掉 `--dry-run=client` 即可直接应用配置：
+   ```bash
+   kubectl run mypod --image=nginx -o yaml | kubectl apply -f -
+   ```
+
+3. **自定义标签**：  
+   通过 `--labels` 添加自定义标签：
+   ```bash
+   kubectl run mypod --image=nginx --labels=env=prod,app=web -o yaml
+   ```
+
+---
+
+通过这种方式，您可以快速生成标准的 Kubernetes YAML 模板，并根据需求进行定制化修改。
+
+
+### pod控制器 - DaemonSet
+
+![085](./img/img_85.png)
+
+- 保障每个节点有且只有一个Pod的运行，动态
+
+#### 8.ds.yaml
+
+
+```yaml
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: deamonset-demo
+  labels:
+    app: deamonset-demo
+spec:
+  selector:
+    matchLabels:
+      name: deamonset-demo
+  template:
+    metadata:
+      labels:
+        name: deamonset-demo
+    spec:
+      containers:
+      - name: daemonset-demo-container  
+        image: nginx:1.25  
+        ports:
+        - containerPort: 80  
+```
+
+```bash
+[root@k8s-master01 5]# kubectl get pod
+NAME                   READY   STATUS    RESTARTS   AGE
+deamonset-demo-5npxv   1/1     Running   0          5s
+deamonset-demo-khxvh   1/1     Running   0          5s
+```
+
+```bash
+kubectl describe node k8s-master01
+
+```
+存在污点，导致deamonset不会在主节点创建pod
+
+```bash
+Taints:             node-role.kubernetes.io/control-plane:NoSchedule
+```
+
+
+
+### pod控制器 - Job - 特性
+
+![086](./img/img_86.png)
+
+- Job：保障批处理任务一个或多个成功为止
+
+
+
+### pod控制器 - Job - Madhava's formula
+
+
+![087](./img/img_87.png)
+
+
+以下是根据提供的文件内容整理和修正的代码：
+
+### 1. Python 圆周率计算脚本 (`main.py`)
+
+```python
+# -*- coding: utf-8 -*-
+from __future__ import division
+import time
+
+# 记录开始时间
+time1 = time.time()
+
+# 使用马青公式计算圆周率
+number = 1000
+number1 = number + 10  # 多计算10位防止舍入误差
+b = 10 ** number1      # 基数
+
+# 初始化首项
+x1 = b * 4 // 5        # 4/5 项 (使用整除确保整数运算)
+x2 = b // -239         # -1/239 项
+he = x1 + x2           # 当前总和
+
+# 迭代计算 (步长为2)
+for i in xrange(3, number * 2, 2):
+    x1 //= -25         # 更新 1/5 的项 (含符号)
+    x2 //= -57121      # 更新 1/239 的项 (含符号)
+    x = (x1 + x2) // i # 当前项值
+    he += x            # 累加到总和
+
+# 最终计算并调整精度
+pai = he * 4           # 乘以4得到π
+pai //= 10 ** 10       # 移除多余的10位
+
+# 格式化输出结果
+paistring = str(pai)
+result = paistring[0] + '.' + paistring[1:]
+print(result)
+
+# 计算并输出耗时
+time2 = time.time()
+print('Total time: {:.3f}s'.format(time2 - time1))
+```
+
+### 2. Dockerfile (构建计算镜像)
+
+```dockerfile
+FROM python:2.7
+ADD ./main.py /root/main.py
+CMD ["python", "/root/main.py"]
+```
+
+### 3. Kubernetes Job 配置文件 (`job.yaml`)
+
+```yaml
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: job-demo
+spec:
+  template:
+    metadata:
+      name: job-demo-pod
+    spec:
+      containers:
+      - name: job-demo-container
+        image: wangyanglinux/tools:magingpythonv1
+      restartPolicy: Never
+  backoffLimit: 4  # 失败重试次数
+```
+
+---
+
+
+> **部署流程**：
+> 1. 构建 Docker 镜像：`docker build -t wangyanglinux/tools:magingpythonv1 .`
+> 2. 推送镜像到仓库：`docker push wangyanglinux/tools:magingpythonv1`
+> 3. 部署到 Kubernetes：`kubectl apply -f job.yaml`
+> 4. 查看结果：`kubectl logs job/job-demo`
+
+
+---
+
+
+要创建并使用自己的 Docker 镜像，需要完成以下步骤：
+
+### 完整操作流程
+
+#### 1. 创建 Python 脚本文件
+新建 `main.py` 文件，内容如下：
+```python
+# -*- coding: utf-8 -*-
+from __future__ import division
+import time
+
+time1 = time.time()
+
+number = 1000
+number1 = number + 10
+b = 10 ** number1
+x1 = b * 4 // 5
+x2 = b // -239
+he = x1 + x2
+
+for i in xrange(3, number * 2, 2):
+    x1 //= -25
+    x2 //= -57121
+    x = (x1 + x2) // i
+    he += x
+
+pai = he * 4
+pai //= 10 ** 10
+paistring = str(pai)
+result = paistring[0] + '.' + paistring[1:]
+print(result)
+
+time2 = time.time()
+print('Total time: {:.3f}s'.format(time2 - time1))
+```
+
+#### 2. 创建 Dockerfile
+新建 `Dockerfile` 文件（无扩展名），内容如下：
+```dockerfile
+FROM python:2.7
+COPY main.py /app/
+WORKDIR /app
+CMD ["python", "main.py"]
+```
+
+#### 3. 构建自定义 Docker 镜像
+在终端执行（替换 `your-dockerhub-username` 为你的实际用户名）：
+```bash
+docker build -t your-dockerhub-username/pi-calculator:v1 .
+```
+
+#### 4. 测试镜像
+```bash
+docker run --rm your-dockerhub-username/pi-calculator:v1
+```
+
+#### 5. 推送镜像到阿里云容器服务
+
+[Docker——发布本地镜像到Docker Hub和阿里云容器服务](https://blog.csdn.net/wpc2018/article/details/121779047?ops_request_misc=%257B%2522request%255Fid%2522%253A%252206f9ce2d7323cc8e57fe58114ca16518%2522%252C%2522scm%2522%253A%252220140713.130102334..%2522%257D&request_id=06f9ce2d7323cc8e57fe58114ca16518&biz_id=0&utm_medium=distribute.pc_search_result.none-task-blog-2~all~sobaiduend~default-3-121779047-null-null.142^v102^control&utm_term=docker%20hub&spm=1018.2226.3001.4187)
+
+
+# 使用阿里云容器服务创建和部署镜像的完整指南
+
+您已经成功注册了阿里云容器服务，下面是完整的操作流程，包括创建镜像、上传到阿里云容器镜像服务（ACR）以及修改YAML文件：
+
+## 完整操作流程
+
+### 1. 准备工作
+```bash
+# 确保您有Dockerfile和main.py文件
+ls
+# 应该看到: Dockerfile main.py
+
+# 登录阿里云Docker Registry（替换<username>为您的阿里云账号）
+docker login --username=<username> registry.<region>.aliyuncs.com
+# 密码：开通服务时设置的密码或AccessKey密码
+```
+
+### 2. 构建本地镜像
+```bash
+# 构建镜像
+docker build -t pi-calculator:v1 .
+```
+
+### 3. 配置阿里云镜像仓库
+1. 登录[阿里云容器镜像服务控制台](https://cr.console.aliyun.com)
+2. 创建命名空间（例如：your-namespace）
+3. 创建镜像仓库（例如：pi-calculator）
+4. 选择"本地仓库"类型
+
+### 4. 标记并推送镜像到ACR
+```bash
+# 获取完整镜像地址（在仓库详情页面查看）
+# 格式：registry.<region>.aliyuncs.com/<namespace>/<repo-name>:<tag>
+
+# 标记本地镜像
+docker tag pi-calculator:v1 registry.<region>.aliyuncs.com/your-namespace/pi-calculator:v1
+
+# 推送镜像到阿里云ACR
+docker push registry.<region>.aliyuncs.com/your-namespace/pi-calculator:v1
+```
+
+### 5. 修改Kubernetes Job YAML
+```yaml
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: job-demo
+spec:
+  template:
+    metadata:
+      name: job-demo-pod
+    spec:
+      containers:
+      - name: job-demo-container
+        image: registry.<region>.aliyuncs.com/your-namespace/pi-calculator:v1
+      restartPolicy: Never
+  backoffLimit: 4
+```
+
+### 6. 配置Kubernetes拉取私有镜像凭证
+```bash
+# 创建Secret存储Docker凭证
+kubectl create secret docker-registry aliyun-regcred \
+  --docker-server=registry.<region>.aliyuncs.com \
+  --docker-username=<username> \
+  --docker-password=<password>
+```
+
+### 7. 更新Job YAML使用凭证
+```yaml
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: job-demo
+spec:
+  template:
+    metadata:
+      name: job-demo-pod
+    spec:
+      imagePullSecrets:
+      - name: aliyun-regcred  # 添加这行
+      containers:
+      - name: job-demo-container
+        image: registry.<region>.aliyuncs.com/your-namespace/pi-calculator:v1
+      restartPolicy: Never
+  backoffLimit: 4
+```
+
+### 8. 部署并验证
+```bash
+# 应用Job配置
+kubectl apply -f job.yaml
+
+# 查看Job状态
+kubectl get jobs
+
+# 查看Pod日志
+kubectl logs $(kubectl get pods -l job-name=job-demo -o jsonpath='{.items[0].metadata.name}')
+```
+
+## 阿里云容器服务关键概念说明
+
+1. **地域(Region)**：
+    - 阿里云服务的物理位置（如：cn-hangzhou, cn-beijing）
+    - 在镜像地址中体现为：`registry.cn-hangzhou.aliyuncs.com`
+
+2. **命名空间(Namespace)**：
+    - 用于隔离不同项目或团队的镜像仓库
+    - 例如：`your-company` 或 `your-team`
+
+3. **镜像仓库(Repository)**：
+    - 存储特定镜像的不同版本
+    - 例如：`pi-calculator`
+
+4. **完整镜像地址格式**：
+   ```
+   registry.<region>.aliyuncs.com/<namespace>/<repository>:<tag>
+   ```
+   示例：
+   ```
+   registry.cn-hangzhou.aliyuncs.com/dev-team/pi-calculator:v1
+   ```
+
+## 常见问题解决方案
+
+### 1. 推送镜像时权限不足
+```bash
+# 检查是否已登录
+docker logout registry.<region>.aliyuncs.com
+docker login --username=<username> registry.<region>.aliyuncs.com
+
+# 如果使用RAM子账号，确保有ACR推送权限
+```
+
+### 2. Kubernetes无法拉取私有镜像
+```bash
+# 验证Secret是否正确
+kubectl get secret aliyun-regcred --output=yaml
+
+# 查看Pod事件获取错误信息
+kubectl describe pod <pod-name>
+```
+
+### 3. 跨地域访问优化
+```yaml
+# 在Job YAML中添加亲和性设置（如果集群在相同地域）
+spec:
+  template:
+    spec:
+      affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 1
+            preference:
+              matchExpressions:
+              - key: topology.kubernetes.io/region
+                operator: In
+                values:
+                - <region>  # 如 cn-hangzhou
+```
+
+### 4. 使用阿里云ACR免密拉取（如果使用ACK集群）
+
+如果您的Kubernetes集群是阿里云ACK集群：
+1. 在ACR控制台开启"自动创建RAM角色"
+2. 在ACK集群关联该RAM角色
+3. 无需创建Secret即可拉取同账号下的ACR镜像
+
+## 最佳实践建议
+
+1. **镜像标签策略**：
+    - 使用语义化版本：v1.0.0
+    - 避免使用latest标签
+    - 添加构建日期：v1-20230708
+
+2. **安全加固**：
+   ```dockerfile
+   # 使用非root用户运行
+   RUN adduser -D pi-user
+   USER pi-user
+   ```
+
+3. **镜像大小优化**：
+   ```dockerfile
+   # 使用多阶段构建
+   FROM python:2.7-slim AS builder
+   # ...构建步骤...
+   
+   FROM python:2.7-alpine
+   COPY --from=builder /app /app
+   ```
+
+4. **YAML模板参数化**：
+   ```yaml
+   # 使用Kustomize或Helm管理不同环境的镜像地址
+   images:
+   - name: job-demo-container
+     newName: registry.cn-hangzhou.aliyuncs.com/your-namespace/pi-calculator
+     newTag: v1
+   ```
+
+完成以上步骤后，您的应用将使用阿里云容器服务托管的自定义镜像运行在Kubernetes集群中。
+
+
+#### 6. 修改 Kubernetes Job 配置
+更新 `job.yaml` 文件：
+```yaml
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: job-demo
+spec:
+  template:
+    metadata:
+      name: job-demo-pod
+    spec:
+      containers:
+      - name: job-demo-container
+        image: your-dockerhub-username/pi-calculator:v1  # 修改为你的镜像
+      restartPolicy: Never
+  backoffLimit: 4
+```
+
+
+修改后，如下：
+
+#### 9.job.yaml
+
+```yaml
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: job-demo
+spec:
+  template:
+    metadata:
+      name: job-demo-pod
+    spec:
+      containers:
+      - name: job-demo-container
+        image: crpi-cd1z0kbw072xy0ao.cn-guangzhou.personal.cr.aliyuncs.com/tangfire/pi-calculator:v1
+      restartPolicy: Never
+  backoffLimit: 4  # 失败重试次数
+```
+```bash
+kubectl apply -f 9.job.yaml
+```
+
+报错：
+
+```bash
+Events:
+  Type     Reason     Age               From               Message
+  ----     ------     ----              ----               -------
+  Normal   Scheduled  22s               default-scheduler  Successfully assigned default/job-demo-76s6c to k8s-node02
+  Normal   BackOff    20s               kubelet            Back-off pulling image "crpi-cd1z0kbw072xy0ao.cn-guangzhou.personal.cr.aliyuncs.com/tangfire/pi-calculator:v1"
+  Warning  Failed     20s               kubelet            Error: ImagePullBackOff
+  Normal   Pulling    8s (x2 over 21s)  kubelet            Pulling image "crpi-cd1z0kbw072xy0ao.cn-guangzhou.personal.cr.aliyuncs.com/tangfire/pi-calculator:v1"
+  Warning  Failed     7s (x2 over 20s)  kubelet            Failed to pull image "crpi-cd1z0kbw072xy0ao.cn-guangzhou.personal.cr.aliyuncs.com/tangfire/pi-calculator:v1": Error response from daemon: pull access denied for crpi-cd1z0kbw072xy0ao.cn-guangzhou.personal.cr.aliyuncs.com/tangfire/pi-calculator, repository does not exist or may require 'docker login': denied: requested access to the resource is denied
+  Warning  Failed     7s (x2 over 20s)  kubelet            Error: ErrImagePull
+```
+
+
+根据您的描述，问题在于 Kubernetes Pod 无法拉取私有镜像，尽管您已在节点上成功使用 `docker pull`。根本原因是 **Kubernetes 未获得访问私有镜像仓库的凭证**。以下是详细分析和解决方案：
+
+---
+
+### **原因分析**
+1. **私有仓库认证问题**
+    - 镜像地址 `crpi-cd1z0kbw072xy0ao.cn-guangzhou.personal.cr.aliyuncs.com` 是阿里云私有仓库，需要登录凭证。
+    - 虽然您通过 `docker login` 在节点上手动拉取了镜像，但 Kubernetes 不会自动使用这些凭证。
+    - 错误信息明确提示：  
+      `pull access denied ... repository may require 'docker login'`
+
+2. **Kubernetes 的拉取机制**
+    - Kubelet 在节点上独立运行，不共享宿主机的 Docker 认证信息。
+    - 必须通过 Kubernetes Secret 显式提供凭证。
+
+---
+
+### **解决方案**
+#### **步骤 1：创建镜像拉取 Secret**
+使用您的阿里云容器镜像服务账号（通常是阿里云账号的 AccessKey）创建 Secret：
+
+```bash
+kubectl create secret docker-registry aliyun-secret \
+  --docker-server=crpi-cd1z0kbw072xy0ao.cn-guangzhou.personal.cr.aliyuncs.com \
+  --docker-username=<阿里云账号或AccessKey ID> \
+  --docker-password=<阿里云密码或AccessKey Secret> \
+  --namespace=default  # 确保与Job在同一个Namespace
+```
+
+#### **步骤 2：修改 YAML 添加 Secret 引用**
+在 Pod 模板的 `spec` 中添加 `imagePullSecrets` 字段：
+
+```yaml
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: job-demo
+spec:
+  template:
+    metadata:
+      name: job-demo-pod
+    spec:
+      containers:
+      - name: job-demo-container
+        image: crpi-cd1z0kbw072xy0ao.cn-guangzhou.personal.cr.aliyuncs.com/tangfire/pi-calculator:v1
+      imagePullSecrets:  # 关键添加项
+        - name: aliyun-secret  # 与Secret名称一致
+      restartPolicy: Never
+  backoffLimit: 4
+```
+
+---
+
+### **验证与调试**
+1. **应用更新后的配置**：
+   ```bash
+   kubectl delete job job-demo  # 删除旧Job
+   kubectl apply -f 9.job.yaml  # 重新部署
+   ```
+
+2. **检查 Pod 状态**：
+   ```bash
+   kubectl get pods
+   kubectl describe pod <pod-name>  # 查看Events确认是否拉取成功
+   ```
+
+3. **常见问题排查**：
+    - **Secret 名称或命名空间不匹配**：确保 Secret 和 Job 在同一个 Namespace（默认为 `default`）。
+    - **凭证错误**：确认 AccessKey 有仓库的拉取权限（阿里云控制台 -> 容器镜像服务 -> 访问凭证）。
+    - **仓库地址拼写错误**：检查 `--docker-server` 地址是否与镜像地址完全一致（包括域名大小写）。
+
+---
+
+### **补充说明**
+- **为什么 `docker pull` 能成功但 Pod 不行？**  
+  Docker 客户端使用 `~/.docker/config.json` 存储凭证，而 Kubelet 不读取该文件，必须通过 Secret 注入凭证。
+- **内网加速建议**（可选）：  
+  如果集群在阿里云 VPC 内，可将镜像地址改为 **VPC 专属地址**（以 `-vpc` 结尾），加速拉取并免流量费：
+  ```yaml
+  image: crpi-cd1z0kbw072xy0ao-vpc.cn-guangzhou.personal.cr.aliyuncs.com/tangfire/pi-calculator:v1
+  ```
+
+通过以上步骤，Pod 将获得私有仓库的访问权限，镜像拉取问题即可解决。
+
+
+```bash
+[root@k8s-master01 5]# kubectl get job
+NAME       COMPLETIONS   DURATION   AGE
+job-demo   1/1           4m51s      6m31s
+
+```
+
+```bash
+[root@k8s-master01 5]# kubectl get pod
+NAME                   READY   STATUS      RESTARTS   AGE
+job-demo-2sv6d         0/1     Completed   0          6m55s
+```
+
+```bash
+[root@k8s-master01 5]# kubectl logs  job-demo-2sv6d
+3.1415926535897932384626433832795028841971693993751058209749445923078164062862089986280348253421170679821480865132823066470938446095505822317253594081284811174502841027019385211055596446229489549303819644288109756659334461284756482337867831652712019091456485669234603486104543266482133936072602491412737245870066063155881748815209209628292540917153643678925903600113305305488204665213841469519415116094330572703657595919530921861173819326117931051185480744623799627495673518857527248912279381830119491298336733624406566430860213949463952247371907021798609437027705392171762931767523846748184676694051320005681271452635608277857713427577896091736371787214684409012249534301465495853710507922796892589235420199561121290219608640344181598136297747713099605187072113499999983729780499510597317328160963185950244594553469083026425223082533446850352619311881710100031378387528865875332083814206171776691473035982534904287554687311595628638823537875937519577818577805321712268066130019278766111959092164201989
+Total time: 0.001s
+```
+
+
+
+
+### 补充一些私人镜像
+
+### myversion:v1,myversion:v2,myversion:v3
+
+![088](./img/img_88.png)
+
+#### index.html
+
+```html
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Nginx Version</title>
+</head>
+<body>
+    <h1>当前版本: v1.0</h1>
+    <p>这是自定义的 Nginx 镜像</p>
+</body>
+</html>
+
+```
+
+#### Dockerfile
+
+```Dockerfile
+# 使用官方 Nginx 镜像
+FROM nginx:1.25-alpine
+
+# 替换默认主页
+COPY index.html /usr/share/nginx/html/index.html
+```
+
+创建`myversion:v1`,`myversion:v2`,`myversion:v3`镜像
+
+
+### randexit
+
+![089](./img/img_89.png)
+
+
+#### randexit.go
+
+```go
+package main
+
+import (
+	"flag"
+	"fmt"
+	"math/rand"
+	"os"
+	"time"
+)
+
+func main() {
+	// 解析命令行参数
+	exitCode := flag.Int("exitcode", 0, "Exit code to return (0-255)")
+	flag.Parse()
+
+	// 设置随机种子
+	rand.Seed(time.Now().UnixNano())
+
+	// 检查是否指定了有效的退出码
+	if *exitCode >= 0 && *exitCode <= 255 {
+		fmt.Printf("Exiting with specified code: %d\n", *exitCode)
+		os.Exit(*exitCode)
+	}
+
+	// 生成随机退出码 (0-255)
+	code := rand.Intn(256)
+	fmt.Printf("Exiting with random code: %d\n", code)
+	os.Exit(code)
+}
+```
+
+#### Dockerfile
+
+```Dockerfile
+# 构建阶段
+FROM golang:1.21-alpine AS builder
+WORKDIR /app
+COPY randexit.go .
+RUN go build -o randexit randexit.go
+
+# 最终镜像
+FROM alpine:3.18
+COPY --from=builder /app/randexit /randexit
+ENTRYPOINT ["/randexit"]
+```
+
+
+
+
+### pod控制器 - Job - 正常退出完成
+
+Job负责批处理任务，即仅执行一次的任务，它保证批处理任务的一个或多个Pod成功结束
+
+
+#### 10.pod.yaml(失败版本)
+
+```yaml
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: rand-exit
+spec:
+  template:
+    spec:
+      containers:
+      - name: rand-container
+        image: crpi-cd1z0kbw072xy0ao.cn-guangzhou.personal.cr.aliyuncs.com/tangfire/randexit:v1
+        args: ["--exitcode=1"]  # 指定退出码为1
+      imagePullSecrets:
+        - name: aliyun-secret  # 私有仓库认证Secret
+      restartPolicy: Never
+  backoffLimit: 4
+```
+
+
+```bash
+[root@k8s-master01 5]# kubectl get pod
+NAME                   READY   STATUS      RESTARTS   AGE
+rand-exit-28n5m        0/1     Error       0          93s
+rand-exit-ct7kx        0/1     Error       0          2m10s
+rand-exit-dsfdr        0/1     Error       0          52s
+rand-exit-k65wp        0/1     Error       0          113s
+```
+
+
+```bash
+[root@k8s-master01 5]# kubectl logs rand-exit-ct7kx
+Exiting with specified code: 1
+```
+
+```bash
+[root@k8s-master01 5]# kubectl get job
+NAME        COMPLETIONS   DURATION   AGE
+rand-exit   0/1           3m1s       3m1s
+```
+
+可以发现job是记录成功的数量值，并不是pod创建了几份
+
+
+
+#### 11.pod.yaml(成功版本)
+
+```yaml
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: rand-exit
+spec:
+  template:
+    spec:
+      containers:
+      - name: rand-container
+        image: crpi-cd1z0kbw072xy0ao.cn-guangzhou.personal.cr.aliyuncs.com/tangfire/randexit:v1
+        args: ["--exitcode=0"]  # 指定退出码为0
+      imagePullSecrets:
+        - name: aliyun-secret  # 私有仓库认证Secret
+      restartPolicy: Never
+  backoffLimit: 4
+```
+
+
+```bash
+[root@k8s-master01 5]# kubectl get pod
+NAME                   READY   STATUS      RESTARTS   AGE
+rand-exit-28sr6        0/1     Completed   0          11s
+```
+
+```bash
+[root@k8s-master01 5]# kubectl get job
+NAME        COMPLETIONS   DURATION   AGE
+rand-exit   1/1           4s         82s
+```
+
+
+
+
+
+
+
+
+### pod控制器 - CronJob - 特性
+
+
+![090](./img/img_90.png)
+
+### pod控制器 - CronJob - Spec - 1
+
+![091](./img/img_91.png)
+
+
+### pod控制器 - CronJob - Spec - 2
+
+![092](./img/img_92.png)
+
+
+### pod控制器 - CronJob - 限制
+
+创建Job操作应该是幂等的
+
+
+
 
 
 
