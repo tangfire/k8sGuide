@@ -535,7 +535,52 @@ metadata:
 
 ### configMap - 环境变量
 
+```yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: literal-config
+  namespace: default
+data:
+  name: dave
+  password: pass
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: env-config
+  namespace: default
+data:
+  log_level: INFO
+```
 
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: cm-env-test-pod
+spec:
+  containers:
+    - name: test-container
+      image: wangyanglinux/myapp:v1
+      command: ["/bin/sh", "-c", "env"]  # 启动后执行env命令显示所有环境变量
+      env:
+        - name: USERNAME  # 单个环境变量定义
+          valueFrom:
+            configMapKeyRef:
+              name: literal-config  # 从名为literal-config的ConfigMap获取
+              key: name             # 获取name键对应的值(dave)
+        - name: PASSWORD  # 另一个环境变量
+          valueFrom:
+            configMapKeyRef:
+              name: literal-config
+              key: password         # 获取password键对应的值(pass)
+      envFrom:
+        - configMapRef:
+            name: env-config  # 批量导入env-config ConfigMap的所有键值
+  restartPolicy: Never  # 容器退出后不重启
+```
 
 
 
