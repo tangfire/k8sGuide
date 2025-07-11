@@ -544,7 +544,10 @@ metadata:
 data:
   name: dave
   password: pass
----
+
+```
+
+```yaml
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -561,9 +564,11 @@ kind: Pod
 metadata:
   name: cm-env-test-pod
 spec:
+  imagePullSecrets:
+    - name: aliyun-regcred
   containers:
     - name: test-container
-      image: wangyanglinux/myapp:v1
+      image: crpi-cd1z0kbw072xy0ao.cn-guangzhou.personal.cr.aliyuncs.com/tangfire/myversion:v1
       command: ["/bin/sh", "-c", "env"]  # 启动后执行env命令显示所有环境变量
       env:
         - name: USERNAME  # 单个环境变量定义
@@ -582,12 +587,514 @@ spec:
   restartPolicy: Never  # 容器退出后不重启
 ```
 
+#### ConfigMap - ENV(2.pod.yaml)
 
 
+
+```yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: literal-config
+  namespace: default
+data:
+  name: dave
+  password: pass
+
+---
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: env-config
+  namespace: default
+data:
+  log_level: INFO
+
+
+---
+
+apiVersion: v1
+kind: Pod
+metadata:
+  name: cm-env-test-pod
+spec:
+  imagePullSecrets:
+    - name: aliyun-secret
+  containers:
+    - name: test-container
+      image: crpi-cd1z0kbw072xy0ao.cn-guangzhou.personal.cr.aliyuncs.com/tangfire/myversion:v1
+      command: ["/bin/sh", "-c", "env"]  # 启动后执行env命令显示所有环境变量
+      env:
+        - name: USERNAME  # 单个环境变量定义
+          valueFrom:
+            configMapKeyRef:
+              name: literal-config  # 从名为literal-config的ConfigMap获取
+              key: name             # 获取name键对应的值(dave)
+        - name: PASSWORD  # 另一个环境变量
+          valueFrom:
+            configMapKeyRef:
+              name: literal-config
+              key: password         # 获取password键对应的值(pass)
+      envFrom:
+        - configMapRef:
+            name: env-config  # 批量导入env-config ConfigMap的所有键值
+  restartPolicy: Never  # 容器退出后不重启
+
+```
+
+
+```bash
+[root@k8s-master01 7]# kubectl apply -f 2.pod.yaml 
+configmap/literal-config created
+configmap/env-config created
+pod/cm-env-test-pod created
+[root@k8s-master01 7]# kubectl get pod
+NAME                    READY   STATUS      RESTARTS   AGE
+cm-env-test-pod         0/1     Completed   0          5s
+readiness-httpget-pod   0/1     Running     0          19h
+[root@k8s-master01 7]# kubectl logs cm-env-test-pod
+KUBERNETES_SERVICE_PORT=443
+KUBERNETES_PORT=tcp://10.0.0.1:443
+HOSTNAME=cm-env-test-pod
+SHLVL=1
+HOME=/root
+MYAPP_SERVICE_HOST=10.13.161.153
+PKG_RELEASE=1
+MYAPP_PORT=tcp://10.13.161.153:80
+MYAPP_SERVICE_PORT=80
+USERNAME=dave
+KUBERNETES_PORT_443_TCP_ADDR=10.0.0.1
+NGINX_VERSION=1.25.5
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+MYAPP_PORT_80_TCP_ADDR=10.13.161.153
+KUBERNETES_PORT_443_TCP_PORT=443
+NJS_VERSION=0.8.4
+KUBERNETES_PORT_443_TCP_PROTO=tcp
+MYAPP_SERVICE_PORT_80_80=80
+MYAPP_PORT_80_TCP_PORT=80
+NJS_RELEASE=3
+MYAPP_PORT_80_TCP_PROTO=tcp
+log_level=INFO
+KUBERNETES_PORT_443_TCP=tcp://10.0.0.1:443
+KUBERNETES_SERVICE_PORT_HTTPS=443
+KUBERNETES_SERVICE_HOST=10.0.0.1
+MYAPP_PORT_80_TCP=tcp://10.13.161.153:80
+PWD=/
+PASSWORD=pass
+```
+
+
+### configMap - 启动命令
+
+
+```yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: literal-config
+  namespace: default
+data:
+  name: dave
+  password: pass
+
+```
+
+#### 3.pod.yaml
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: cm-command-pod
+spec:
+  imagePullSecrets:
+    - name: aliyun-secret
+  containers:
+    - name: myapp-container
+      image: crpi-cd1z0kbw072xy0ao.cn-guangzhou.personal.cr.aliyuncs.com/tangfire/myversion:v1
+      command: ["/bin/sh", "-c", "echo $(USERNAME) $(PASSWORD)"]
+      env:
+        - name: USERNAME
+          valueFrom:
+            configMapKeyRef:
+              name: literal-config
+              key: name
+        - name: PASSWORD
+          valueFrom:
+            configMapKeyRef:
+              name: literal-config
+              key: password
+  restartPolicy: Never
+```
+
+```bash
+[root@k8s-master01 7]# kubectl apply -f 3.pod.yaml 
+pod/cm-command-pod created
+[root@k8s-master01 7]# kubectl get pod
+NAME                    READY   STATUS      RESTARTS   AGE
+cm-command-pod          0/1     Completed   0          5s
+cm-env-test-pod         0/1     Completed   0          5m1s
+readiness-httpget-pod   0/1     Running     0          19h
+[root@k8s-master01 7]# kubectl logs cm-command-pod
+dave pass
+```
+
+
+### configMap - 文件
+
+
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: cm-volume-pod
+spec:
+  imagePullSecrets:
+    - name: aliyun-secret
+  containers:
+    - name: myapp-container
+      image: crpi-cd1z0kbw072xy0ao.cn-guangzhou.personal.cr.aliyuncs.com/tangfire/myversion:v1
+      volumeMounts:
+        - name: config-volume
+          mountPath: /etc/config
+  volumes:
+    - name: config-volume
+      configMap:
+        name: literal-config
+  restartPolicy: Never
+```
+
+```bash
+[root@k8s-master01 7]# kubectl apply -f 4.pod.yaml 
+pod/cm-volume-pod created
+[root@k8s-master01 7]# kubectl exec -it cm-volume-pod -- /bin/sh
+/ # cd /etc/config
+/etc/config # ls
+name      password
+/etc/config # cat name
+dave/etc/config # cat password
+pass/etc/config # ^C
+
+/etc/config # exit
+command terminated with exit code 130
+[root@k8s-master01 7]# ^C
+```
+
+
+### configMap - 热更新 - 1
+
+#### default.conf
+
+```nginx
+server {
+    listen 80 default_server;
+    server_name example.com www.example.com;
+    
+    location / {
+        root /usr/share/nginx/html;
+        index index.html index.htm;
+    }
+}
+```
+
+```bash
+[root@k8s-master01 5]# kubectl create cm default-nginx --from-file=default.conf
+configmap/default-nginx created
+[root@k8s-master01 5]# kubectl get cm
+NAME               DATA   AGE
+default-nginx      1      18s
+
+[root@k8s-master01 5]# kubectl create cm default-nginx --from-file=default.conf
+configmap/default-nginx created
+[root@k8s-master01 5]# kubectl get cm
+NAME               DATA   AGE
+default-nginx      1      18s
+env-config         1      3h30m
+game-config        1      15h
+kube-root-ca.crt   1      7d16h
+literal-config     2      3h30m
+[root@k8s-master01 5]# ^C
+[root@k8s-master01 5]# kubectl get cm default-nginx -o yaml
+apiVersion: v1
+data:
+  default.conf: "server {\n    listen 80 default_server;\n    server_name example.com
+    www.example.com;\n    \n    location / {\n        root /usr/share/nginx/html;\n
+    \       index index.html index.htm;\n    }\n}\n"
+kind: ConfigMap
+metadata:
+  creationTimestamp: "2025-07-11T05:34:46Z"
+  name: default-nginx
+  namespace: default
+  resourceVersion: "1008811"
+  uid: 7c1dfcda-8a7e-4fff-829f-c2b13f2f6c25
+  
+  
+```
+
+
+
+
+#### deployment.yaml
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: hotupdate-deploy
+  name: hotupdate-deploy
+spec:
+  replicas: 5
+  selector:
+    matchLabels:
+      app: hotupdate-deploy
+  template:
+    metadata:
+      labels:
+        app: hotupdate-deploy
+    spec:
+      containers:
+      - image: nginx:1.25
+        name: nginx
+        volumeMounts:
+        - name: config-volume
+          mountPath: /etc/nginx/conf.d/
+      volumes:
+      - name: config-volume
+        configMap:
+          name: default-nginx
+```
+
+
+```bash
+[root@k8s-master01 5]# kubectl apply -f deployment.yaml 
+deployment.apps/hotupdate-deploy created
+[root@k8s-master01 5]# kubectl get pod
+NAME                                READY   STATUS    RESTARTS   AGE
+hotupdate-deploy-685f59b5d7-8pb9r   1/1     Running   0          6s
+hotupdate-deploy-685f59b5d7-j62fw   1/1     Running   0          6s
+hotupdate-deploy-685f59b5d7-mcphd   1/1     Running   0          6s
+hotupdate-deploy-685f59b5d7-ql5wg   1/1     Running   0          6s
+hotupdate-deploy-685f59b5d7-xvg9p   1/1     Running   0          6s
+[root@k8s-master01 5]# ^C
+[root@k8s-master01 5]# 
+[root@k8s-master01 5]# 
+[root@k8s-master01 5]# kubectl exec -it hotupdate-deploy-685f59b5d7-8pb9r -- /bin/bash
+root@hotupdate-deploy-685f59b5d7-8pb9r:/# 
+root@hotupdate-deploy-685f59b5d7-8pb9r:/# 
+root@hotupdate-deploy-685f59b5d7-8pb9r:/# cd /etc/nginx/conf.d
+root@hotupdate-deploy-685f59b5d7-8pb9r:/etc/nginx/conf.d# ls
+default.conf
+root@hotupdate-deploy-685f59b5d7-8pb9r:/etc/nginx/conf.d# cat default.conf 
+server {
+    listen 80 default_server;
+    server_name example.com www.example.com;
+    
+    location / {
+        root /usr/share/nginx/html;
+        index index.html index.htm;
+    }
+}
+```
+再起一个终端，执行：
+
+```bash
+[root@k8s-master01 6]# kubectl edit cm default-nginx
+configmap/default-nginx edited
+```
+
+将端口从80改成8080
+
+```bash
+[root@k8s-master01 6]# kubectl get cm default-nginx -o yaml
+apiVersion: v1
+data:
+  default.conf: "server {\n    listen 8080 default_server;\n    server_name example.com
+    www.example.com;\n    \n    location / {\n        root /usr/share/nginx/html;\n
+    \       index index.html index.htm;\n    }\n}\n"
+kind: ConfigMap
+metadata:
+  creationTimestamp: "2025-07-11T05:34:46Z"
+  name: default-nginx
+  namespace: default
+  resourceVersion: "1011934"
+  uid: 7c1dfcda-8a7e-4fff-829f-c2b13f2f6c25
+```
+
+```bash
+root@hotupdate-deploy-685f59b5d7-8pb9r:/etc/nginx/conf.d# cat default.conf 
+server {
+    listen 8080 default_server;
+    server_name example.com www.example.com;
+    
+    location / {
+        root /usr/share/nginx/html;
+        index index.html index.htm;
+    }
+}
+```
+
+```bash
+[root@k8s-master01 5]# kubectl get pod -o wide
+NAME                                READY   STATUS    RESTARTS   AGE   IP              NODE         NOMINATED NODE   READINESS GATES
+hotupdate-deploy-685f59b5d7-8pb9r   1/1     Running   0          38m   10.244.58.202   k8s-node02   <none>           <none>
+hotupdate-deploy-685f59b5d7-j62fw   1/1     Running   0          38m   10.244.85.245   k8s-node01   <none>           <none>
+hotupdate-deploy-685f59b5d7-mcphd   1/1     Running   0          38m   10.244.58.204   k8s-node02   <none>           <none>
+hotupdate-deploy-685f59b5d7-ql5wg   1/1     Running   0          38m   10.244.58.201   k8s-node02   <none>           <none>
+hotupdate-deploy-685f59b5d7-xvg9p   1/1     Running   0          38m   10.244.85.244   k8s-node01   <none>           <none>
+[root@k8s-master01 5]# curl 10.244.58.202
+<!DOCTYPE html>
+<html>
+<head>
+<title>Welcome to nginx!</title>
+<style>
+html { color-scheme: light dark; }
+body { width: 35em; margin: 0 auto;
+font-family: Tahoma, Verdana, Arial, sans-serif; }
+</style>
+</head>
+<body>
+<h1>Welcome to nginx!</h1>
+<p>If you see this page, the nginx web server is successfully installed and
+working. Further configuration is required.</p>
+
+<p>For online documentation and support please refer to
+<a href="http://nginx.org/">nginx.org</a>.<br/>
+Commercial support is available at
+<a href="http://nginx.com/">nginx.com</a>.</p>
+
+<p><em>Thank you for using nginx.</em></p>
+</body>
+</html>
+[root@k8s-master01 5]# curl 10.244.58.202:8080
+curl: (7) Failed to connect to 10.244.58.202 port 8080: Connection refused
+```
+
+
+### configMap - 热更新 - 2
+
+
+![128](./img/img_128.png)
+
+
+```bash
+kubectl patch deployment hotupdate-deploy --patch '{"spec":{"template":{"metadata":{"annotations":{"version/config":"666666666"}}}}}'
+```
+
+
+```bash
+[root@k8s-master01 5]# kubectl patch deployment hotupdate-deploy --patch '{"spec":{"template":{"metadata":{"annotations":{"version/config":"666666666"}}}}}'
+deployment.apps/hotupdate-deploy patched
+
+[root@k8s-master01 5]# kubectl get pod -o wide
+NAME                                READY   STATUS    RESTARTS   AGE    IP              NODE         NOMINATED NODE   READINESS GATES
+hotupdate-deploy-7b4b64978c-2djbf   1/1     Running   0          115s   10.244.85.247   k8s-node01   <none>           <none>
+hotupdate-deploy-7b4b64978c-7d79b   1/1     Running   0          116s   10.244.85.246   k8s-node01   <none>           <none>
+hotupdate-deploy-7b4b64978c-m4jhm   1/1     Running   0          114s   10.244.58.209   k8s-node02   <none>           <none>
+hotupdate-deploy-7b4b64978c-t8g8m   1/1     Running   0          116s   10.244.58.203   k8s-node02   <none>           <none>
+hotupdate-deploy-7b4b64978c-w52dw   1/1     Running   0          116s   10.244.58.206   k8s-node02   <none>           <none>
+[root@k8s-master01 5]# curl 10.244.85.247:8080
+<!DOCTYPE html>
+<html>
+<head>
+<title>Welcome to nginx!</title>
+<style>
+html { color-scheme: light dark; }
+body { width: 35em; margin: 0 auto;
+font-family: Tahoma, Verdana, Arial, sans-serif; }
+</style>
+</head>
+<body>
+<h1>Welcome to nginx!</h1>
+<p>If you see this page, the nginx web server is successfully installed and
+working. Further configuration is required.</p>
+
+<p>For online documentation and support please refer to
+<a href="http://nginx.org/">nginx.org</a>.<br/>
+Commercial support is available at
+<a href="http://nginx.com/">nginx.com</a>.</p>
+
+<p><em>Thank you for using nginx.</em></p>
+</body>
+</html>
+
+[root@k8s-master01 5]# curl 10.244.85.247:80
+curl: (7) Failed to connect to 10.244.85.247 port 80: Connection refused
+```
+
+
+### configMap - 不可改变
+
+
+
+![129](./img/img_129.png)
+
+```bash
+kubectl edit cm default-nginx
+```
+
+添加`immutable: true`
+
+```yaml
+# Please edit the object below. Lines beginning with a '#' will be ignored,
+# and an empty file will abort the edit. If an error occurs while saving this file will be
+# reopened with the relevant failures.
+#
+apiVersion: v1
+data:
+  default.conf: "server {\n    listen 8080 default_server;\n    server_name example.com
+    www.example.com;\n    \n    location / {\n        root /usr/share/nginx/html;\n
+    \       index index.html index.htm;\n    }\n}\n"
+kind: ConfigMap
+immutable: true
+metadata:
+  creationTimestamp: "2025-07-11T05:34:46Z"
+  name: default-nginx
+  namespace: default
+  resourceVersion: "1011934"
+  uid: 7c1dfcda-8a7e-4fff-829f-c2b13f2f6c25
+```
+
+
+
+- cm 如果修改为不可改变的状态，是不允许回退的，是不可逆的。
+- 可以删除此cm，然后重新创建一个无不可改变标记的cm
+- 优点：
+  - 防止出现一些错误的修改
+  - 减少对apiServer请求压力
+
+  
 
  
 
 ## 03. Secret
+
+编码而来的安全
+
+### Secret - 定义
+
+![130](./img/img_130.png)
+
+
+### Secret - 特性
+
+![131](./img/img_131.png)
+
+
+### Secret - 类型
+
+![132](./img/img_132.png)
+
+
+
+
+
+
+
+
+
 
 ## 04. Downward API
 
