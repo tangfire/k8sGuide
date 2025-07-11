@@ -1088,15 +1088,694 @@ metadata:
 ![132](./img/img_132.png)
 
 
+### Secret - Opaque - 概念
+
+
+![133](./img/img_133.png)
+
+### Secret - Opaque - 创建
 
 
 
+![134](./img/img_134.png)
 
+```bash
+[root@k8s-master01 5]# echo -n "tangfire" | base64
+dGFuZ2ZpcmU=
+[root@k8s-master01 5]# echo -n "dGFuZ2ZpcmU=" | base64 -d
+tangfire[root@k8s-master01 5]# 
+[root@k8s-master01 5]#  echo -n "123456" | base64
+MTIzNDU2
+```
+
+#### 7.secret.yaml
+
+
+```yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: mysecret
+type: Opaque
+data:
+  password: MTIzNDU2
+  username: dGFuZ2ZpcmU=
+```
+
+
+```bash
+[root@k8s-master01 5]# vim 7.secret.yaml 
+[root@k8s-master01 5]# 
+[root@k8s-master01 5]# kubectl apply -f 7.secret.yaml 
+secret/mysecret created
+[root@k8s-master01 5]# kubectl get secret
+NAME            TYPE                             DATA   AGE
+aliyun-secret   kubernetes.io/dockerconfigjson   1      2d22h
+mysecret        Opaque                           2      5s
+[root@k8s-master01 5]# kubectl describe secret mysecret
+Name:         mysecret
+Namespace:    default
+Labels:       <none>
+Annotations:  <none>
+
+Type:  Opaque
+
+Data
+====
+password:  6 bytes
+username:  8 bytes
+```
+
+```bash
+[root@k8s-master01 5]# kubectl get secret mysecret -o yaml
+apiVersion: v1
+data:
+  password: MTIzNDU2
+  username: dGFuZ2ZpcmU=
+kind: Secret
+metadata:
+  annotations:
+    kubectl.kubernetes.io/last-applied-configuration: |
+      {"apiVersion":"v1","data":{"password":"MTIzNDU2","username":"dGFuZ2ZpcmU="},"kind":"Secret","metadata":{"annotations":{},"name":"mysecret","namespace":"default"},"type":"Opaque"}
+  creationTimestamp: "2025-07-11T11:03:44Z"
+  name: mysecret
+  namespace: default
+  resourceVersion: "1038681"
+  uid: 79c4de3e-6b3a-48ce-9121-0b4110a8c910
+type: Opaque
+[root@k8s-master01 5]# echo -n "MTIzNDU2" | base64 -d
+123456[root@k8s-master01 5]# 
+```
+
+
+### Secret - Opaque - ENV
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: opaque-secret-env
+  name: opaque-secret-env-deploy
+spec:
+  replicas: 5
+  selector:
+    matchLabels:
+      app: op-se-env-pod
+  template:
+    metadata:
+      labels:
+        app: op-se-env-pod
+    spec:
+      imagePullSecrets:
+        - name: aliyun-secret
+      containers:
+      - name: myapp-container
+        image: crpi-cd1z0kbw072xy0ao.cn-guangzhou.personal.cr.aliyuncs.com/tangfire/myversion:v1
+        ports:
+        - containerPort: 80
+        env:
+        - name: TEST_USER
+          valueFrom:
+            secretKeyRef:
+              name: mysecret
+              key: username
+        - name: TEST_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: mysecret
+              key: password
+```
+
+
+
+```bash
+[root@k8s-master01 5]# vim 8.deployment.yaml
+[root@k8s-master01 5]# 
+[root@k8s-master01 5]# 
+[root@k8s-master01 5]# kubectl apply -f 8.deployment.yaml 
+deployment.apps/opaque-secret-env-deploy created
+```
+
+```bash
+[root@k8s-master01 5]# kubectl get pod
+NAME                                        READY   STATUS    RESTARTS   AGE
+opaque-secret-env-deploy-7b945c5f98-9mzzp   1/1     Running   0          43s
+opaque-secret-env-deploy-7b945c5f98-f5252   1/1     Running   0          43s
+opaque-secret-env-deploy-7b945c5f98-hxfcx   1/1     Running   0          43s
+opaque-secret-env-deploy-7b945c5f98-qfwnj   1/1     Running   0          43s
+opaque-secret-env-deploy-7b945c5f98-xrxw5   1/1     Running   0          43s
+[root@k8s-master01 5]# kubectl exec -it opaque-secret-env-deploy-7b945c5f98-9mzzp -- /bin/sh 
+/ # env
+KUBERNETES_SERVICE_PORT=443
+KUBERNETES_PORT=tcp://10.0.0.1:443
+HOSTNAME=opaque-secret-env-deploy-7b945c5f98-9mzzp
+SHLVL=1
+HOME=/root
+TEST_PASSWORD=123456
+PKG_RELEASE=1
+TEST_USER=tangfire
+TERM=xterm
+KUBERNETES_PORT_443_TCP_ADDR=10.0.0.1
+NGINX_VERSION=1.25.5
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+KUBERNETES_PORT_443_TCP_PORT=443
+NJS_VERSION=0.8.4
+KUBERNETES_PORT_443_TCP_PROTO=tcp
+NJS_RELEASE=3
+KUBERNETES_SERVICE_PORT_HTTPS=443
+KUBERNETES_PORT_443_TCP=tcp://10.0.0.1:443
+KUBERNETES_SERVICE_HOST=10.0.0.1
+PWD=/
+/ # 
+```
+
+
+### Secret - Opaque - Volume
+
+
+![135](./img/img_135.png)
+
+#### 9.pod.yaml
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  labels:
+    name: secret-volume
+  name: secret-volume-pod
+spec:
+  imagePullSecrets:
+    - name: aliyun-secret
+  volumes:
+    - name: volumes12
+      secret:
+        secretName: mysecret
+  containers:
+    - image: crpi-cd1z0kbw072xy0ao.cn-guangzhou.personal.cr.aliyuncs.com/tangfire/myversion:v1
+      name: myapp-container
+      volumeMounts:
+        - name: volumes12
+          mountPath: /data
+```
+
+```bash
+[root@k8s-master01 5]# vim 9.pod.yaml
+[root@k8s-master01 5]# 
+[root@k8s-master01 5]# 
+[root@k8s-master01 5]# kubectl apply -f 9.pod.yaml 
+pod/secret-volume-pod created
+[root@k8s-master01 5]# 
+[root@k8s-master01 5]# kubectl get pod
+NAME                READY   STATUS    RESTARTS   AGE
+secret-volume-pod   1/1     Running   0          27s
+[root@k8s-master01 5]# kubectl exec -it secret-volume-pod -- /bin/sh
+/ # 
+/ # cd /data/
+/data # ls
+password  username
+/data # cat username
+tangfire/data # cat password
+123456/data # 
+```
+
+
+
+### Secret - Opaque - Volume - 热更新
+
+
+![136](./img/img_136.png)
+
+
+
+### Secret - Opaque - Volume - 不可更改
+
+![137](./img/img_137.png)
 
 
 
 
 ## 04. Downward API
+
+
+容器在运行时从Kubernetes API服务器获取有关它们自身的信息
+
+
+### Downward API - 存在的意义
+
+
+![138](./img/img_138.png)
+
+
+### Downward API - env案例
+
+#### 12.pod.yaml
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: downward-api-env-example
+spec:
+  containers:
+    - name: my-container
+      image: wangyanglinux/myapp:v1.0
+      env:
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: POD_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+        - name: CPU_REQUEST
+          valueFrom:
+            resourceFieldRef:
+              containerName: my-container
+              resource: requests.cpu
+        - name: CPU_LIMIT
+          valueFrom:
+            resourceFieldRef:
+              containerName: my-container
+              resource: limits.cpu
+        - name: MEMORY_REQUEST
+          valueFrom:
+            resourceFieldRef:
+              containerName: my-container
+              resource: requests.memory
+        - name: MEMORY_LIMIT
+          valueFrom:
+            resourceFieldRef:
+              containerName: my-container
+              resource: limits.memory
+  restartPolicy: Never
+```
+
+```bash
+[root@k8s-master01 5]# vim 12.pod.yaml
+[root@k8s-master01 5]# 
+[root@k8s-master01 5]# 
+[root@k8s-master01 5]# kubectl apply -f 12.pod.yaml 
+pod/downward-api-env-example created
+[root@k8s-master01 5]# 
+[root@k8s-master01 5]# 
+[root@k8s-master01 5]# kubectl get pod
+NAME                       READY   STATUS              RESTARTS   AGE
+downward-api-env-example   0/1     ContainerCreating   0          6s
+secret-volume-pod          1/1     Running             0          96m
+[root@k8s-master01 5]# kubectl get pod
+NAME                       READY   STATUS    RESTARTS   AGE
+downward-api-env-example   1/1     Running   0          48s
+secret-volume-pod          1/1     Running   0          96m
+[root@k8s-master01 5]# kubectl exec -it downward-api-env-example -- /bin/bash
+downward-api-env-example:/# 
+downward-api-env-example:/# env
+KUBERNETES_SERVICE_PORT_HTTPS=443
+KUBERNETES_SERVICE_PORT=443
+CHARSET=UTF-8
+HOSTNAME=downward-api-env-example
+CPU_REQUEST=0
+POD_NAME=downward-api-env-example
+POD_NAMESPACE=default
+PWD=/
+HOME=/root
+LANG=C.UTF-8
+KUBERNETES_PORT_443_TCP=tcp://10.0.0.1:443
+TERM=xterm
+SHLVL=1
+KUBERNETES_PORT_443_TCP_PROTO=tcp
+KUBERNETES_PORT_443_TCP_ADDR=10.0.0.1
+POD_IP=10.244.58.213
+CPU_LIMIT=4
+MEMORY_LIMIT=3698946048
+KUBERNETES_SERVICE_HOST=10.0.0.1
+KUBERNETES_PORT=tcp://10.0.0.1:443
+MEMORY_REQUEST=0
+KUBERNETES_PORT_443_TCP_PORT=443
+LC_COLLATE=C
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+_=/usr/bin/env
+downward-api-env-example:/# 
+```
+
+### Downward API - volume案例
+
+#### 13.pod.yaml
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: downward-api-volume-example
+spec:
+  containers:
+    - name: my-container
+      image: wangyanglinux/myapp:v1.0
+      resources:
+        limits:
+          cpu: "1"
+          memory: "512Mi"
+        requests:
+          cpu: "0.5"
+          memory: "256Mi"
+      volumeMounts:
+        - name: downward-api-volume
+          mountPath: /etc/podinfo
+  volumes:
+    - name: downward-api-volume
+      downwardAPI:
+        items:
+          - path: "annotations"
+            fieldRef:
+              fieldPath: metadata.annotations
+          - path: "labels"
+            fieldRef:
+              fieldPath: metadata.labels
+          - path: "name"
+            fieldRef:
+              fieldPath: metadata.name
+          - path: "namespace"
+            fieldRef:
+              fieldPath: metadata.namespace
+          - path: "uid"
+            fieldRef:
+              fieldPath: metadata.uid
+          - path: "cpuRequest"
+            resourceFieldRef:
+              containerName: my-container
+              resource: requests.cpu
+          - path: "memoryRequest"
+            resourceFieldRef:
+              containerName: my-container
+              resource: requests.memory
+          - path: "cpuLimit"
+            resourceFieldRef:
+              containerName: my-container
+              resource: limits.cpu
+          - path: "memoryLimit"
+            resourceFieldRef:
+              containerName: my-container
+              resource: limits.memory
+  restartPolicy: Never
+```
+
+### **通俗解释：Kubernetes Downward API 卷挂载配置**
+
+这个 YAML 定义了一个 Pod，名为 `downward-api-volume-example`，它通过 **Downward API** 将 Pod 自身的元数据（如名称、命名空间、标签等）和资源限制（CPU、内存）以文件的形式挂载到容器内部（`/etc/podinfo`）。
+
+---
+
+## **1. 核心功能**
+- **Downward API**：Kubernetes 提供的一种机制，允许 Pod **获取自身的运行时信息**（如 Pod 名称、IP、资源限制等）。
+- **用途**：应用程序可以通过读取 `/etc/podinfo` 目录下的文件，动态获取 Pod 的元数据和资源配额，而无需硬编码或依赖外部查询。
+
+---
+
+## **2. 关键配置解析**
+### **(1) Pod 基本信息**
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: downward-api-volume-example
+```
+- **`apiVersion: v1`**：使用 Kubernetes 核心 API。
+- **`kind: Pod`**：定义的是一个 Pod 资源。
+- **`metadata.name`**：Pod 名称是 `downward-api-volume-example`。
+
+---
+
+### **(2) 容器配置**
+```yaml
+spec:
+  containers:
+    - name: my-container
+      image: wangyanglinux/myapp:v1.0
+      resources:
+        limits:
+          cpu: "1"
+          memory: "512Mi"
+        requests:
+          cpu: "0.5"
+          memory: "256Mi"
+```
+- **`image: wangyanglinux/myapp:v1.0`**：容器使用的镜像。
+- **`resources`**：定义容器的资源限制和请求：
+  - **`limits`**（硬限制）：
+    - CPU：最多 1 核
+    - 内存：最多 512MB
+  - **`requests`**（最低需求）：
+    - CPU：至少 0.5 核
+    - 内存：至少 256MB
+
+---
+
+### **(3) Downward API 卷挂载**
+```yaml
+volumeMounts:
+  - name: downward-api-volume
+    mountPath: /etc/podinfo  # 挂载到容器内的路径
+```
+- **`volumeMounts`**：将 `downward-api-volume` 挂载到容器的 `/etc/podinfo` 目录。
+- **容器内会生成以下文件**：
+  - `/etc/podinfo/annotations`（Pod 的注解）
+  - `/etc/podinfo/labels`（Pod 的标签）
+  - `/etc/podinfo/name`（Pod 名称）
+  - `/etc/podinfo/namespace`（Pod 所在的命名空间）
+  - `/etc/podinfo/uid`（Pod 的唯一 ID）
+  - `/etc/podinfo/cpuRequest`（CPU 请求值）
+  - `/etc/podinfo/memoryRequest`（内存请求值）
+  - `/etc/podinfo/cpuLimit`（CPU 限制值）
+  - `/etc/podinfo/memoryLimit`（内存限制值）
+
+---
+
+### **(4) Downward API 卷定义**
+```yaml
+volumes:
+  - name: downward-api-volume
+    downwardAPI:
+      items:
+        - path: "annotations"  # 文件名
+          fieldRef:
+            fieldPath: metadata.annotations  # 数据来源
+        - path: "labels"
+          fieldRef:
+            fieldPath: metadata.labels
+        - path: "name"
+          fieldRef:
+            fieldPath: metadata.name
+        - path: "namespace"
+          fieldRef:
+            fieldPath: metadata.namespace
+        - path: "uid"
+          fieldRef:
+            fieldPath: metadata.uid
+        - path: "cpuRequest"
+          resourceFieldRef:
+            containerName: my-container  # 指定容器
+            resource: requests.cpu      # 获取 CPU 请求值
+        - path: "memoryRequest"
+          resourceFieldRef:
+            containerName: my-container
+            resource: requests.memory
+        - path: "cpuLimit"
+          resourceFieldRef:
+            containerName: my-container
+            resource: limits.cpu
+        - path: "memoryLimit"
+          resourceFieldRef:
+            containerName: my-container
+            resource: limits.memory
+```
+- **`downwardAPI`**：定义 Downward API 卷，将 Pod 信息写入文件。
+- **`items`**：指定要暴露哪些信息，每个 `path` 对应一个文件名，`fieldRef` 或 `resourceFieldRef` 指定数据来源。
+
+---
+
+### **(5) 重启策略**
+```yaml
+restartPolicy: Never
+```
+- **`Never`**：Pod 退出后不会自动重启（适合一次性任务）。
+
+---
+
+## **3. 实际应用场景**
+1. **日志收集**：应用程序可以读取 `/etc/podinfo/name` 获取 Pod 名称，用于日志标记。
+2. **动态配置**：根据 Pod 的命名空间（`namespace`）或标签（`labels`）调整运行参数。
+3. **资源监控**：通过 `cpuLimit`、`memoryLimit` 等文件，让应用知道自己的资源配额。
+
+---
+
+## **4. 示例：容器内查看文件**
+```bash
+kubectl exec downward-api-volume-example -- cat /etc/podinfo/name
+# 输出：downward-api-volume-example
+
+kubectl exec downward-api-volume-example -- cat /etc/podinfo/cpuLimit
+# 输出：1
+```
+
+---
+
+## **总结**
+- **Downward API** 让 Pod 能获取自身信息，无需依赖外部查询。
+- **挂载成文件** 后，应用程序可以直接读取，适用于动态配置、日志标记等场景。
+- **资源限制**（CPU/内存）也能通过文件暴露，方便应用自适应调整。
+
+这样设计的好处是 **解耦**，应用程序不需要硬编码 Pod 信息，而是动态获取，提高可移植性。 🚀
+
+```bash
+[root@k8s-master01 5]# vim 13.pod.yaml
+[root@k8s-master01 5]# 
+[root@k8s-master01 5]# 
+[root@k8s-master01 5]# kubectl apply -f 13.pod.yaml 
+pod/downward-api-volume-example created
+[root@k8s-master01 5]# kubectl get pod
+NAME                          READY   STATUS              RESTARTS   AGE
+downward-api-env-example      1/1     Running             0          22m
+downward-api-volume-example   0/1     ContainerCreating   0          3s
+secret-volume-pod             1/1     Running             0          118m
+[root@k8s-master01 5]# kubectl exec -it downward-api-volume-example /bin/bash
+kubectl exec [POD] [COMMAND] is DEPRECATED and will be removed in a future version. Use kubectl exec [POD] -- [COMMAND] instead.
+error: unable to upgrade connection: container not found ("my-container")
+[root@k8s-master01 5]# kubectl exec -it downward-api-volume-example --  /bin/bash
+downward-api-volume-example:/# cd /etc/podinfo/
+downward-api-volume-example:/etc/podinfo# ls
+annotations    cpuRequest     memoryLimit    name           uid
+cpuLimit       labels         memoryRequest  namespace
+downward-api-volume-example:/etc/podinfo# ls -l
+total 0
+lrwxrwxrwx    1 root     root            18 Jul 11 21:36 annotations -> ..data/annotations
+lrwxrwxrwx    1 root     root            15 Jul 11 21:36 cpuLimit -> ..data/cpuLimit
+lrwxrwxrwx    1 root     root            17 Jul 11 21:36 cpuRequest -> ..data/cpuRequest
+lrwxrwxrwx    1 root     root            13 Jul 11 21:36 labels -> ..data/labels
+lrwxrwxrwx    1 root     root            18 Jul 11 21:36 memoryLimit -> ..data/memoryLimit
+lrwxrwxrwx    1 root     root            20 Jul 11 21:36 memoryRequest -> ..data/memoryRequest
+lrwxrwxrwx    1 root     root            11 Jul 11 21:36 name -> ..data/name
+lrwxrwxrwx    1 root     root            16 Jul 11 21:36 namespace -> ..data/namespace
+lrwxrwxrwx    1 root     root            10 Jul 11 21:36 uid -> ..data/uid
+downward-api-volume-example:/etc/podinfo# cat annotations 
+cni.projectcalico.org/containerID="ab58059ec2c7afc061d7c50794cf459ef4ab2702a68f3611f3fe1eb613daa028"
+cni.projectcalico.org/podIP="10.244.85.251/32"
+cni.projectcalico.org/podIPs="10.244.85.251/32"
+kubectl.kubernetes.io/last-applied-configuration="{\"apiVersion\":\"v1\",\"kind\":\"Pod\",\"metadata\":{\"annotations\":{},\"name\":\"downward-api-volume-example\",\"namespace\":\"default\"},\"spec\":{\"containers\":[{\"image\":\"wangyanglinux/myapp:v1.0\",\"name\":\"my-container\",\"resources\":{\"limits\":{\"cpu\":\"1\",\"memory\":\"512Mi\"},\"requests\":{\"cpu\":\"0.5\",\"memory\":\"256Mi\"}},\"volumeMounts\":[{\"mountPath\":\"/etc/podinfo\",\"name\":\"downward-api-volume\"}]}],\"restartPolicy\":\"Never\",\"volumes\":[{\"downwardAPI\":{\"items\":[{\"fieldRef\":{\"fieldPath\":\"metadata.annotations\"},\"path\":\"annotations\"},{\"fieldRef\":{\"fieldPath\":\"metadata.labels\"},\"path\":\"labels\"},{\"fieldRef\":{\"fieldPath\":\"metadata.name\"},\"path\":\"name\"},{\"fieldRef\":{\"fieldPath\":\"metadata.namespace\"},\"path\":\"namespace\"},{\"fieldRef\":{\"fieldPath\":\"metadata.uid\"},\"path\":\"uid\"},{\"path\":\"cpuRequest\",\"resourceFieldRef\":{\"containerName\":\"my-container\",\"resource\":\"requests.cpu\"}},{\"path\":\"memoryRequest\",\"resourceFieldRef\":{\"containerName\":\"my-container\",\"resource\":\"requests.memory\"}},{\"path\":\"cpuLimit\",\"resourceFieldRef\":{\"containerName\":\"my-container\",\"resource\":\"limits.cpu\"}},{\"path\":\"memoryLimit\",\"resourceFieldRef\":{\"containerName\":\"my-container\",\"resource\":\"limits.memory\"}}]},\"name\":\"downward-api-volume\"}]}}\n"
+kubernetes.io/config.seen="2025-07-11T21:36:18.116842185+08:00"
+kubernetes.io/config.source="api"downward-api-volume-example:/etc/podinfo# cat cpuRequest 
+downward-api-volume-example:/etc/podinfo# 
+downward-api-volume-example:/etc/podinfo# cat cpuRequest 
+downward-api-volume-example:/etc/podinfo# cat memoryRequest 
+268435456downward-api-volume-example:/etc/podinfo# cat namespace 
+defaultdownward-api-volume-example:/etc/podinfo# 
+```
+
+```bash
+defaultdownward-api-volume-example:/etc/podinfo# cat labels 
+downward-api-volume-example:/etc/podinfo# 
+```
+
+```bash
+[root@k8s-master01 6]# kubectl get pod --show-labels
+NAME                          READY   STATUS    RESTARTS   AGE    LABELS
+downward-api-env-example      1/1     Running   0          35m    <none>
+downward-api-volume-example   1/1     Running   0          13m    <none>
+secret-volume-pod             1/1     Running   0          131m   name=secret-volume
+[root@k8s-master01 6]# kubectl label pod downward-api-volume-example domain=tangfire.com
+pod/downward-api-volume-example labeled
+```
+
+```bash
+downward-api-volume-example:/etc/podinfo# cat labels 
+domain="tangfire.com"downward-api-volume-example:/etc/podinfo# 
+```
+
+所以，以卷的绑定方式可以热更新，只要你对当前pod发生的一些修改，都会被反馈到文件内部的变化
+
+
+### Downward API - volume 相较于 env 优势
+
+- 会保持热更新的特性
+- 传递一个容器的资源字段到另一个容器中
+
+
+### Downward API - 扩展
+
+![139](./img/img_139.png)
+
+
+
+以下是完整的 Kubernetes RBAC 和 Pod 定义代码：
+
+### 1. RBAC 权限配置 (`1.RBAC.yaml`)
+```yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: test-api-cluster-admin-binding
+subjects:
+- kind: ServiceAccount
+  name: test-api
+  namespace: default
+roleRef:
+  kind: ClusterRole
+  name: cluster-admin
+  apiGroup: rbac.authorization.k8s.io
+```
+
+### 2. Pod 定义 (`2.pod.yaml`)
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: curl
+spec:
+  serviceAccountName: test-api
+  containers:
+  - name: main
+    image: tutum/curl
+    command: ["sleep", "9999"]
+```
+
+### 3. 容器内执行的 API 访问命令
+```bash
+# 获取访问凭证
+TOKEN=$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)
+CAPATH="/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
+NS=$(cat /var/run/secrets/kubernetes.io/serviceaccount/namespace)
+
+# 调用 Kubernetes API
+curl -H "Authorization: Bearer $TOKEN" --cacert $CAPATH \
+https://kubernetes/api/v1/namespaces/$NS/pods
+```
+
+### 关键说明：
+1. **RBAC 配置**：
+  - 创建了 `ClusterRoleBinding`，将 `cluster-admin` 角色绑定到 `default` 命名空间下的 `test-api` 服务账号
+  - 授予了最高权限（生产环境应遵循最小权限原则）
+
+2. **Pod 配置**：
+  - 使用 `tutum/curl` 镜像创建名为 `curl` 的 Pod
+  - 指定使用 `test-api` 服务账号
+  - 容器启动后执行 `sleep 9999` 保持运行
+
+3. **API 访问流程**：
+  - 自动挂载的服务账号令牌提供认证信息
+  - 使用 CA 证书验证 API Server 身份
+  - 通过 Bearer Token 认证访问当前命名空间的 Pod 列表
+
+### 使用步骤：
+
+
+
+
+
 
 ## 05. volume
 
