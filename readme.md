@@ -1713,7 +1713,7 @@ domain="tangfire.com"downward-api-volume-example:/etc/podinfo#
 
 以下是完整的 Kubernetes RBAC 和 Pod 定义代码：
 
-### 1. RBAC 权限配置 (`1.RBAC.yaml`)
+### 1. RBAC 权限配置 (`1.rbac.yaml`)
 ```yaml
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
@@ -1739,7 +1739,7 @@ spec:
   serviceAccountName: test-api
   containers:
   - name: main
-    image: tutum/curl
+    image: curlimages/curl
     command: ["sleep", "9999"]
 ```
 
@@ -1773,17 +1773,1939 @@ https://kubernetes/api/v1/namespaces/$NS/pods
 ### 使用步骤：
 
 
+```bash
+[root@k8s-master01 14]# vim 1.rbac.yaml
+[root@k8s-master01 14]# kubectl apply -f 1.rbac.yaml 
+clusterrolebinding.rbac.authorization.k8s.io/test-api-cluster-admin-binding created
+[root@k8s-master01 14]# 
+[root@k8s-master01 14]# 
+[root@k8s-master01 14]# kubectl create sa test-api
+serviceaccount/test-api created
+[root@k8s-master01 14]# 
+[root@k8s-master01 14]# 
+[root@k8s-master01 14]# vim 2.pod.yaml
+[root@k8s-master01 14]# 
+[root@k8s-master01 14]# 
+[root@k8s-master01 14]# kubectl apply -f 2.pod.yaml 
+pod/curl created
+[root@k8s-master01 14]# kubectl get pod
+NAME                          READY   STATUS    RESTARTS   AGE
+curl                          1/1     Running   0          46s
+downward-api-env-example      1/1     Running   0          11h
+downward-api-volume-example   1/1     Running   0          11h
+secret-volume-pod             1/1     Running   0          13h
+
+[root@k8s-master01 14]# kubectl exec -it curl /bin/sh
+kubectl exec [POD] [COMMAND] is DEPRECATED and will be removed in a future version. Use kubectl exec [POD] -- [COMMAND] instead.
+~ $ 
+~ $ TOKEN=$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)
+~ $ CAPATH="/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
+~ $ NS=$(cat /var/run/secrets/kubernetes.io/serviceaccount/namespace)
+~ $ curl -H "Authorization: Bearer $TOKEN" --cacert $CAPATH \
+> https://kubernetes/api/v1/namespaces/$NS/pods
+```
+
+
+### Downward API - Kubernetes API 文档
+
+![140](./img/img_140.png)
+
+```bash
+kubectl proxy --port=8080
+```
+
+再起一个终端执行：
+
+```bash
+curl localhost:8080/openapi/v2 > k8s-swagger.json
+```
+
+```bash
+[root@k8s-master01 14]# ls
+1.rbac.yaml  2.pod.yaml  k8s-swagger.json
+```
+
+
+```bash
+docker run \
+  --rm \
+  -d \
+  -p 80:8080 \
+  -e SWAGGER_JSON=/k8s-swagger.json \
+  -v $(pwd)/k8s-swagger.json:/k8s-swagger.json \
+  swaggerapi/swagger-ui
+```
+
+
+```bash
+[root@k8s-master01 14]# docker run \
+  --rm \
+  -d \
+  -p 80:8080 \
+  -e SWAGGER_JSON=/k8s-swagger.json \
+  -v $(pwd)/k8s-swagger.json:/k8s-swagger.json \
+  swaggerapi/swagger-ui
+Unable to find image 'swaggerapi/swagger-ui:latest' locally
+latest: Pulling from swaggerapi/swagger-ui
+fe07684b16b8: Already exists 
+3b7062d09e02: Already exists 
+fb746e72516f: Already exists 
+a9ff9baf1741: Already exists 
+2c127093dfc7: Already exists 
+63dda2adf85b: Already exists 
+b55ed7d7b2de: Already exists 
+92971aeb101e: Already exists 
+f8757389f534: Pull complete 
+9bace28d4d83: Pull complete 
+6ca57faa02b3: Pull complete 
+857dfce664dd: Pull complete 
+6d4a4ac230eb: Pull complete 
+d940957079a7: Pull complete 
+Digest: sha256:13e9885605519c4ecbe06854e212b10fce703e3c233771de5e58571e459eb9a8
+Status: Downloaded newer image for swaggerapi/swagger-ui:latest
+6a2654e5a847a0a79aa959e33d994996c8855c4163c178f185702a7b06905d32
+```
+
+然后访问：
+
+![141](./img/img_141.png)
+
+
+
 
 
 
 
 ## 05. volume
 
+数据的持久化方案
+
+
+### Volume - 存在的意义
+
+
+![142](./img/img_142.png)
+
+
+![143](./img/img_143.png)
+
+
+
+以下是针对图片中列出的 Kubernetes 持久化存储卷（Persistent Volume）类型的分类和解释：
+
+---
+
+### **一、云服务商存储卷**
+| 类型 | 说明 | 典型使用场景 |
+|------|------|-------------|
+| **awsElasticBlockStore** | AWS EBS 块存储卷 | 需要持久化数据的 AWS EC2 实例 |
+| **azureDisk** | Azure 托管磁盘 | Azure 虚拟机上的持久化存储 |
+| **azureFile** | Azure 文件存储（SMB） | 多 Pod 共享存储（如 WordPress 媒体文件） |
+| **gcePersistentDisk** | Google Cloud 持久化磁盘 | GCP 上的持久化数据存储 |
+
+---
+
+### **二、网络存储卷**
+| 类型 | 说明 | 特点 |
+|------|------|------|
+| **nfs** | 网络文件系统 | 多节点共享读写，适合静态内容 |
+| **cephfs** | Ceph 分布式文件系统 | 高性能分布式存储 |
+| **glusterfs** | GlusterFS 集群文件系统 | 大规模可扩展存储 |
+| **iscsi** | iSCSI 块存储 | 需要裸设备映射的场景 |
+| **rbd** | Ceph 块设备 | 高性能块存储（如数据库） |
+
+---
+
+### **三、本地存储卷**
+| 类型 | 说明 | 注意事项 |
+|------|------|----------|
+| **hostPath** | 挂载宿主机目录 | 仅开发测试用（不安全） |
+| **local** | 本地持久化卷 | 需要结合节点亲和性调度 |
+| **emptyDir** | 临时空目录 | Pod 删除后数据销毁 |
+
+---
+
+### **四、特殊用途存储卷**
+| 类型 | 说明 | 典型用例 |
+|------|------|---------|
+| **secret** | 挂载敏感信息（如密码） | 数据库凭证 |
+| **downwardAPI** | 将 Pod 元数据挂载为文件 | 获取 Pod 名称/IP 等 |
+| **gitRepo** | 克隆 Git 仓库到卷 | 配置文件动态更新 |
+| **projected** | 合并多个存储源（如 secret+downwardAPI） | 复杂配置管理 |
+
+---
+
+### **五、企业级存储方案**
+| 类型 | 说明 | 适用场景 |
+|------|------|---------|
+| **portworxVolume** | Portworx 容器原生存储 | 有状态容器编排 |
+| **storageos** | StorageOS 软件定义存储 | 低延迟持久化存储 |
+| **vsphereVolume** | VMware vSphere 存储 | 企业虚拟化环境 |
+| **scaleIO** | EMC ScaleIO 存储 | 超融合基础架构 |
+
+---
+
+### **六、已弃用/过时类型**
+| 类型 | 替代方案 | 弃用原因 |
+|------|---------|---------|
+| **flocker** | 使用 CSI 驱动 | 项目已停止维护 |
+| **quobyte** | 改用 CSI 驱动 | 社区支持有限 |
+| **fc** (Fibre Channel) | 使用 CSI 驱动 | 配置复杂 |
+
+---
+
+### **选择建议**
+1. **云环境**：优先使用云厂商原生存储（如 AWS EBS）
+2. **共享存储**：选择 `nfs` 或 `cephfs`
+3. **敏感数据**：使用 `secret` 或 `configMap`
+4. **未来兼容性**：优先选择 **CSI**（Container Storage Interface）驱动
+
+> 注：生产环境推荐通过 **StorageClass** 动态分配存储，而非直接使用 PV。
+
+
+### MFS
+
+
+### **什么是 MFS？**
+**MFS（Moose File System）** 是一个开源的分布式文件系统，专为大规模数据存储和高可用性设计。它类似于 **HDFS（Hadoop DFS）** 或 **CephFS**，但更注重易用性和 POSIX 兼容性（即可以像普通文件系统一样使用）。
+
+---
+
+## **1. MFS 的核心特点**
+| 特性 | 说明 |
+|------|------|
+| **分布式存储** | 数据分散在多个服务器上，提高可靠性和性能 |
+| **高可用性** | 支持主备元数据服务器（Master Server），避免单点故障 |
+| **POSIX 兼容** | 像本地文件系统一样使用（支持 `ls`、`cp`、`mv` 等命令） |
+| **动态扩展** | 可在线添加存储节点（Chunk Server），无需停机 |
+| **数据冗余** | 支持副本机制（类似 RAID），防止数据丢失 |
+| **快照功能** | 可创建文件系统快照，用于备份或恢复 |
+
+---
+
+## **2. MFS 的架构**
+MFS 采用 **主从架构**，主要包含以下组件：
+### **(1) 管理服务器（Master Server）**
+- **作用**：存储文件的元数据（如文件名、目录结构、权限等）。
+- **高可用**：可配置 **Metalogger**（元数据备份服务器）和 **Shadow Master**（影子主服务器）实现故障转移。
+
+### **(2) 数据存储节点（Chunk Server）**
+- **作用**：实际存储文件数据（分成多个 **Chunk**，默认 64MB/块）。
+- **扩展性**：可动态添加节点，存储容量随节点增加而增长。
+
+### **(3) 客户端（Client）**
+- **作用**：通过 **FUSE**（用户态文件系统）挂载 MFS，像本地磁盘一样访问。
+- **协议支持**：支持 NFS、SMB、FTP 等。
+
+![MFS 架构图](https://moosefs.com/static/images/mfs-architecture.png)
+
+---
+
+## **3. MFS 的典型应用场景**
+1. **大数据存储**
+  - 替代 HDFS，用于 Hadoop/Spark 等分布式计算框架。
+2. **媒体文件托管**
+  - 存储图片、视频等大文件（如 CDN 后端）。
+3. **虚拟化存储**
+  - 为 KVM/VMware 提供共享存储。
+4. **备份与容灾**
+  - 利用快照功能实现数据保护。
+
+---
+
+## **4. MFS vs 其他分布式文件系统**
+| 文件系统 | 特点 | 适用场景 |
+|----------|------|----------|
+| **MFS** | POSIX 兼容，易部署 | 通用存储、媒体库 |
+| **HDFS** | 适合批处理，不支持随机写 | Hadoop 生态 |
+| **CephFS** | 高扩展性，但配置复杂 | 云原生存储 |
+| **GlusterFS** | 无元数据服务器，性能较低 | 共享文件存储 |
+
+---
+
+## **5. 快速体验 MFS**
+### **步骤 1：安装 Master Server**
+```bash
+wget -O /etc/yum.repos.d/MooseFS.repo https://ppa.moosefs.com/src/moosefs-3-el7.repo
+yum install moosefs-master moosefs-metalogger moosefs-chunkserver
+systemctl start moosefs-master
+```
+
+### **步骤 2：挂载 MFS 客户端**
+```bash
+yum install moosefs-client
+mkdir /mnt/mfs
+mfsmount /mnt/mfs -H mfsmaster
+```
+
+### **步骤 3：验证**
+```bash
+df -h | grep mfs  # 查看挂载情况
+echo "Hello MFS" > /mnt/mfs/test.txt  # 测试写入
+```
+
+---
+
+## **6. 注意事项**
+- **性能瓶颈**：Master Server 是单点，超大规模集群建议用 Ceph。
+- **安全性**：默认未加密，生产环境需配置 SSL/TLS。
+- **社区支持**：MFS 开源版更新较慢，企业需求可考虑商业版（MooseFS Pro）。
+
+
+
+### Volume - emptyDir - 概念
+
+
+![144](./img/img_144.png)
+
+
+### Volume - emptyDir - 创建使用
+
+![145](./img/img_145.png)
+
+
+#### 15.pod.yaml
+
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: volume-emptydir-pod
+  namespace: default
+spec:
+  containers:
+    - name: myapp
+      image: nginx:alpine  
+      ports:
+        - containerPort: 80
+      volumeMounts:
+        - name: logs-volume
+          mountPath: /var/log/nginx  # 标准Nginx日志路径
+    - name: busybox
+      image: busybox:latest  
+      command: ["/bin/sh","-c","touch /logs/access.log && tail -f /logs/access.log"]
+      volumeMounts:
+        - name: logs-volume
+          mountPath: /logs
+  volumes:
+    - name: logs-volume
+      emptyDir: {}
+```
+
+这是一个使用 `emptyDir` 卷实现容器间共享日志的 Kubernetes Pod 配置，我来为您详细解释：
+
+### 配置解析：
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: volume-emptydir-pod  # Pod名称
+  namespace: default         # 部署在default命名空间
+spec:
+  containers:
+  - name: myapp             # 第一个容器：Nginx服务
+    image: nginx:alpine     # 使用官方Nginx镜像
+    ports:
+    - containerPort: 80     # 暴露80端口
+    volumeMounts:
+    - name: logs-volume     # 挂载存储卷
+      mountPath: /var/log/nginx  # Nginx默认日志目录
+      
+  - name: busybox           # 第二个容器：日志监控
+    image: busybox:latest    # 使用官方BusyBox镜像
+    command: ["/bin/sh","-c","touch /logs/access.log && tail -f /logs/access.log"] 
+    volumeMounts:
+    - name: logs-volume     # 挂载同一个存储卷
+      mountPath: /logs      # 挂载到不同路径
+
+  volumes:
+  - name: logs-volume       # 定义存储卷
+    emptyDir: {}            # 临时空目录卷
+```
+
+### 核心机制：
+1. **emptyDir 卷**：
+  - 生命周期与Pod绑定（Pod删除后数据消失）
+  - 两个容器通过挂载同一个卷实现文件共享
+  - 适合临时数据交换场景
+
+2. **日志流工作原理**：
+  - Nginx容器将日志写入 `/var/log/nginx/access.log`
+  - 由于挂载了同一个卷，实际写入的是 `emptyDir` 的存储空间
+  - BusyBox容器从 `/logs/access.log` 读取相同文件
+  - `tail -f` 命令实现日志实时监控
+
+3. **路径差异处理**：
+  - 虽然挂载点不同（`/var/log/nginx` 和 `/logs`）
+  - 但指向的是同一个物理存储位置
+
+### 典型使用场景：
+- 开发调试时实时查看容器日志
+- 临时性的容器间数据交换
+- 不需要持久化的中间数据处理
+
+### 注意事项：
+1. 生产环境如需持久化存储，应改用 `persistentVolumeClaim`
+2. `emptyDir` 默认使用节点存储介质（可能影响IO性能）
+3. 可以通过 `emptyDir.medium: Memory` 指定使用内存（临时性更高）
+
+您可以通过以下命令验证日志共享：
+```bash
+kubectl exec volume-emptydir-pod -c myapp -- ls /var/log/nginx
+kubectl exec volume-emptydir-pod -c busybox -- ls /logs
+```
+
+这个方案比通过 `kubectl logs` 命令查看日志的优势在于可以实时监控日志变化，适合调试场景。
+
+
+
+```bash
+[root@k8s-master01 7]# vim 15.pod.yaml
+[root@k8s-master01 7]# kubectl apply -f 15.pod.yaml 
+pod/volume-emptydir-pod created
+[root@k8s-master01 7]# 
+[root@k8s-master01 7]# kubectl get pod
+NAME                          READY   STATUS    RESTARTS   AGE
+curl                          1/1     Running   0          100m
+downward-api-env-example      1/1     Running   0          13h
+downward-api-volume-example   1/1     Running   0          13h
+secret-volume-pod             1/1     Running   0          15h
+volume-emptydir-pod           2/2     Running   0          60s
+```
+
+```bash
+[root@k8s-master01 7]# kubectl get pod -o wide
+NAME                          READY   STATUS    RESTARTS   AGE     IP              NODE         NOMINATED NODE   READINESS GATES
+curl                          1/1     Running   0          108m    10.244.58.216   k8s-node02   <none>           <none>
+downward-api-env-example      1/1     Running   0          13h     10.244.58.213   k8s-node02   <none>           <none>
+downward-api-volume-example   1/1     Running   0          13h     10.244.85.251   k8s-node01   <none>           <none>
+secret-volume-pod             1/1     Running   0          15h     10.244.58.212   k8s-node02   <none>           <none>
+volume-emptydir-pod           2/2     Running   0          8m31s   10.244.58.214   k8s-node02   <none>           <none>
+[root@k8s-master01 7]# while true;
+> do
+> curl 10.244.58.214
+> done
+```
+
+
+
+
+
+
+
+再起一个终端：
+
+```bash
+[root@k8s-master01 14]# kubectl get pod
+NAME                          READY   STATUS    RESTARTS   AGE
+curl                          1/1     Running   0          104m
+downward-api-env-example      1/1     Running   0          13h
+downward-api-volume-example   1/1     Running   0          13h
+secret-volume-pod             1/1     Running   0          15h
+volume-emptydir-pod           2/2     Running   0          4m54s
+[root@k8s-master01 14]# kubectl logs volume-emptydir-pod -c busybox
+192.168.120.11 - - [12/Jul/2025:02:45:53 +0000] "GET / HTTP/1.1" 200 615 "-" "curl/7.76.1" "-"
+192.168.120.11 - - [12/Jul/2025:02:45:55 +0000] "GET / HTTP/1.1" 200 615 "-" "curl/7.76.1" "-"
+192.168.120.11 - - [12/Jul/2025:02:45:56 +0000] "GET / HTTP/1.1" 200 615 "-" "curl/7.76.1" "-"
+192.168.120.11 - - [12/Jul/2025:02:45:57 +0000] "GET / HTTP/1.1" 200 615 "-" "curl/7.76.1" "-"
+192.168.120.11 - - [12/Jul/2025:02:45:58 +0000] "GET / HTTP/1.1" 200 615 "-" "curl/7.76.1" "-"
+192.168.120.11 - - [12/Jul/2025:02:45:59 +0000] "GET / HTTP/1.1" 200 615 "-" "curl/7.76.1" "-"
+192.168.120.11 - - [12/Jul/2025:02:46:00 +0000] "GET / HTTP/1.1" 200 615 "-" "curl/7.76.1" "-"
+192.168.120.11 - - [12/Jul/2025:02:46:01 +0000] "GET / HTTP/1.1" 200 615 "-" "curl/7.76.1" "-"
+192.168.120.11 - - [12/Jul/2025:02:46:02 +0000] "GET / HTTP/1.1" 200 615 "-" "curl/7.76.1" "-"
+192.168.120.11 - - [12/Jul/2025:02:46:03 +0000] "GET / HTTP/1.1" 200 615 "-" "curl/7.76.1" "-"
+192.168.120.11 - - [12/Jul/2025:02:46:04 +0000] "GET / HTTP/1.1" 200 615 "-" "curl/7.76.1" "-"
+192.168.120.11 - - [12/Jul/2025:02:46:05 +0000] "GET / HTTP/1.1" 200 615 "-" "curl/7.76.1" "-"
+192.168.120.11 - - [12/Jul/2025:02:46:06 +0000] "GET / HTTP/1.1" 200 615 "-" "curl/7.76.1" "-"
+192.168.120.11 - - [12/Jul/2025:02:46:07 +0000] "GET / HTTP/1.1" 200 615 "-" "curl/7.76.1" "-"
+192.168.120.11 - - [12/Jul/2025:02:46:08 +0000] "GET / HTTP/1.1" 200 615 "-" "curl/7.76.1" "-"
+192.168.120.11 - - [12/Jul/2025:02:46:09 +0000] "GET / HTTP/1.1" 200 615 "-" "curl/7.76.1" "-"
+192.168.120.11 - - [12/Jul/2025:02:46:10 +0000] "GET / HTTP/1.1" 200 615 "-" "curl/7.76.1" "-"
+192.168.120.11 - - [12/Jul/2025:02:46:11 +0000] "GET / HTTP/1.1" 200 615 "-" "curl/7.76.1" "-"
+```
+
+```bash
+[root@k8s-master01 14]# kubectl exec -it volume-emptydir-pod -c myapp /bin/sh
+kubectl exec [POD] [COMMAND] is DEPRECATED and will be removed in a future version. Use kubectl exec [POD] -- [COMMAND] instead.
+/ # cd /var
+/var # cd log
+/var/log # ls
+nginx
+/var/log # cd nginx
+/var/log/nginx # ls
+access.log  error.log
+/var/log/nginx # 
+```
+
+
+### 查看pod的uid
+
+```bash
+[root@k8s-master01 7]# kubectl get pod -o wide
+NAME                          READY   STATUS    RESTARTS   AGE    IP              NODE         NOMINATED NODE   READINESS GATES
+volume-emptydir-pod           2/2     Running   0          39m    10.244.58.214   k8s-node02   <none>           <none>
+[root@k8s-master01 7]# 
+[root@k8s-master01 7]# 
+[root@k8s-master01 7]# 
+[root@k8s-master01 7]# kubectl get pod volume-emptydir-pod -o yaml | grep uid
+  uid: 5628286e-2fba-4fa1-9101-37d0e515d779
+```
+然后到node02节点
+
+执行：
+
+```bash
+[root@k8s-node02 docker]# cd /var/lib/kubelet/pods
+[root@k8s-node02 pods]# ls
+2e02ae83-5e9e-4f13-bd50-31eda9ba034b  d435644c-9464-4878-87b6-5de57384822b
+5628286e-2fba-4fa1-9101-37d0e515d779  d8f842b0-a567-4572-95cd-e2d8dd0ca939
+71845854-3a1a-4e5e-8ea3-be4821ecb7e2  e5656dc1-a051-46a1-ad96-402228f761d9
+[root@k8s-node02 pods]# cd 5628286e-2fba-4fa1-9101-37d0e515d779
+[root@k8s-node02 5628286e-2fba-4fa1-9101-37d0e515d779]# ls
+containers  etc-hosts  plugins  volumes
+[root@k8s-node02 5628286e-2fba-4fa1-9101-37d0e515d779]# yum -y install tree
+Last metadata expiration check: 0:37:10 ago on Sat Jul 12 12:39:55 2025.
+Dependencies resolved.
+=========================================================================================
+ Package          Architecture       Version                    Repository          Size
+=========================================================================================
+Installing:
+ tree             x86_64             1.8.0-10.el9               baseos              55 k
+
+Transaction Summary
+=========================================================================================
+Install  1 Package
+
+Total download size: 55 k
+Installed size: 113 k
+Downloading Packages:
+tree-1.8.0-10.el9.x86_64.rpm                             107 kB/s |  55 kB     00:00    
+-----------------------------------------------------------------------------------------
+Total                                                    106 kB/s |  55 kB     00:00     
+Running transaction check
+Transaction check succeeded.
+Running transaction test
+Transaction test succeeded.
+Running transaction
+  Preparing        :                                                                 1/1 
+  Installing       : tree-1.8.0-10.el9.x86_64                                        1/1 
+  Running scriptlet: tree-1.8.0-10.el9.x86_64                                        1/1 
+  Verifying        : tree-1.8.0-10.el9.x86_64                                        1/1 
+
+Installed:
+  tree-1.8.0-10.el9.x86_64                                                               
+
+Complete!
+[root@k8s-node02 5628286e-2fba-4fa1-9101-37d0e515d779]# tree .
+.
+├── containers
+│   ├── busybox
+│   │   └── bee3a6d5
+│   └── myapp
+│       └── bb4a9bcd
+├── etc-hosts
+├── plugins
+│   └── kubernetes.io~empty-dir
+│       ├── logs-volume
+│       │   └── ready
+│       └── wrapped_kube-api-access-jkzlt
+│           └── ready
+└── volumes
+    ├── kubernetes.io~empty-dir
+    │   └── logs-volume
+    │       ├── access.log
+    │       └── error.log
+    └── kubernetes.io~projected
+        └── kube-api-access-jkzlt
+            ├── ca.crt -> ..data/ca.crt
+            ├── namespace -> ..data/namespace
+            └── token -> ..data/token
+
+12 directories, 10 files
+[root@k8s-node02 5628286e-2fba-4fa1-9101-37d0e515d779]# cd volumes/
+[root@k8s-node02 volumes]# cd kubernetes.io~empty-dir/
+[root@k8s-node02 kubernetes.io~empty-dir]# cd logs-volume/
+[root@k8s-node02 logs-volume]# ls
+access.log  error.log
+[root@k8s-node02 logs-volume]# echo "tangfire216" >> access.log 
+```
+
+
+
+```bash
+[root@k8s-node02 logs-volume]# kubectl logs volume-emptydir-pod -c busybox 
+192.168.120.11 - - [12/Jul/2025:02:49:45 +0000] "GET / HTTP/1.1" 200 615 "-" "curl/7.76.1" "-"
+192.168.120.11 - - [12/Jul/2025:02:49:45 +0000] "GET / HTTP/1.1" 200 615 "-" "curl/7.76.1" "-"
+192.168.120.11 - - [12/Jul/2025:02:49:45 +0000] "GET / HTTP/1.1" 200 615 "-" "curl/7.76.1" "-"
+tangfire216
+```
+
+
+
+
+### Volume - emptyDir - 共享内存
+
+#### 16.pod.yaml
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: volume-emptydir-mem
+  namespace: default
+spec:
+  containers:
+    - name: myapp
+      image: nginx:1.25
+      ports:
+        - containerPort: 80
+      resources:
+        limits:
+          cpu: "1"
+          memory: "1024Mi"
+        requests:
+          cpu: "1"
+          memory: "1024Mi"
+      volumeMounts:
+        - name: mem-volume
+          mountPath: /data
+  volumes:
+    - name: mem-volume
+      emptyDir:
+        medium: Memory
+        sizeLimit: 500Mi
+```
+
+
+### **Kubernetes Pod 配置解析**
+这个 YAML 文件定义了一个使用 **内存临时卷（emptyDir）** 的 Pod，以下是逐部分解释：
+
+---
+
+#### **1. 基础信息**
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: volume-emptydir-mem  # Pod名称
+  namespace: default          # 部署在default命名空间
+```
+- **作用**：定义一个名为 `volume-emptydir-mem` 的 Pod，位于默认命名空间。
+
+---
+
+#### **2. 容器配置**
+```yaml
+spec:
+  containers:
+    - name: myapp                     # 容器名称
+      image: wangyanglinux/myapp:v1.0 # 使用私有镜像
+      ports:
+        - containerPort: 80           # 暴露80端口
+```
+- **功能**：容器运行 `myapp` 服务，监听 80 端口。
+
+---
+
+#### **3. 资源限制**
+```yaml
+resources:
+  limits:
+    cpu: "1"         # 最多使用1核CPU
+    memory: "1024Mi" # 最多使用1GB内存
+  requests:
+    cpu: "1"         # 至少需要1核CPU
+    memory: "1024Mi" # 至少需要1GB内存
+```
+- **关键点**：
+  - `limits` 是硬性限制（超过会被终止）
+  - `requests` 是调度依据（K8s 根据此值分配资源）
+  - 这里设置为相同值，表示要求独占资源。
+
+---
+
+#### **4. 内存临时卷（emptyDir）**
+```yaml
+volumeMounts:
+  - name: mem-volume
+    mountPath: /data  # 挂载到容器内的/data路径
+
+volumes:
+  - name: mem-volume
+    emptyDir:
+      medium: Memory   # 使用内存而非磁盘
+      sizeLimit: 500Mi # 限制卷大小为500MB
+```
+- **核心特性**：
+  - **内存存储**：数据存储在内存中，读写速度极快，但 **Pod 重启后数据丢失**。
+  - **容量限制**：卷大小不超过 500MB（超过会触发 eviction）。
+  - **共享性**：可被同一 Pod 内的多个容器挂载（本例中仅 `myapp` 容器使用）。
+
+---
+
+### **典型应用场景**
+1. **临时缓存**
+  - 例如缓存计算结果，加速后续处理。
+2. **敏感数据处理**
+  - 内存数据不会落盘，适合处理密码等敏感信息。
+3. **高性能读写**
+  - 避免磁盘 IO 瓶颈（如实时数据分析）。
+
+---
+
+### **注意事项**
+1. **数据易失性**
+  - Pod 崩溃或重启会导致数据丢失，**不可用于持久化存储**。
+2. **资源监控**
+  - 内存卷会计入容器的内存使用量，需确保 `sizeLimit` ≤ 容器内存限制。
+3. **生产建议**
+  - 替换私有镜像 `wangyanglinux/myapp:v1.0` 为公共镜像（如 `nginx:alpine`）。
+  - 如需持久化，改用 `persistentVolumeClaim`。
+
+---
+
+### **操作验证**
+```bash
+# 1. 创建Pod
+kubectl apply -f pod.yaml
+
+# 2. 进入容器查看挂载点
+kubectl exec volume-emptydir-mem -- ls /data
+
+# 3. 监控资源使用
+kubectl top pod volume-emptydir-mem
+```
+
+
+
+### Volume - hostPath - 概念
+
+
+![146](./img/img_146.png)
+
+### Volume - hostPath - 类型
+
+![147](./img/img_147.png)
+
+
+### Volume - hostPath - 注意
+
+![148](./img/img_148.png)
+
+
+
+### Volume - hostPath 实验
+
+
+
+#### 17.pod.yaml
+
+```bash
+apiVersion: v1
+kind: Pod
+metadata:
+  name: hostpath-pod
+spec:
+  containers:
+    - name: myapp
+      image: nginx:1.25
+      volumeMounts:
+        - name: test-volume
+          mountPath: /test-pd
+  volumes:
+    - name: test-volume
+      hostPath:
+        path: /test
+        type: Directory
+```
+
+
+```bash
+[root@k8s-master01 7]# kubectl get pod
+NAME                          READY   STATUS              RESTARTS       AGE
+curl                          1/1     Running             1 (160m ago)   5h27m
+downward-api-env-example      1/1     Running             0              17h
+downward-api-volume-example   1/1     Running             0              16h
+hostpath-pod                  0/1     ContainerCreating   0              19m
+secret-volume-pod             1/1     Running             0              18h
+volume-emptydir-mem           1/1     Running             0              50m
+volume-emptydir-pod           2/2     Running             0              3h47m
+[root@k8s-master01 7]# kubectl describe pod hostpath-pod
+Name:             hostpath-pod
+Namespace:        default
+Priority:         0
+Service Account:  default
+Node:             k8s-node02/192.168.120.13
+Start Time:       Sat, 12 Jul 2025 14:06:49 +0800
+Labels:           <none>
+Annotations:      <none>
+Status:           Pending
+IP:               
+IPs:              <none>
+Containers:
+  myapp:
+    Container ID:   
+    Image:          linux:1.25
+    Image ID:       
+    Port:           <none>
+    Host Port:      <none>
+    State:          Waiting
+      Reason:       ContainerCreating
+    Ready:          False
+    Restart Count:  0
+    Environment:    <none>
+    Mounts:
+      /test-pd from test-volume (rw)
+      /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-v7g4h (ro)
+Conditions:
+  Type                        Status
+  PodReadyToStartContainers   False 
+  Initialized                 True 
+  Ready                       False 
+  ContainersReady             False 
+  PodScheduled                True 
+Volumes:
+  test-volume:
+    Type:          HostPath (bare host directory volume)
+    Path:          /test
+    HostPathType:  Directory
+  kube-api-access-v7g4h:
+    Type:                    Projected (a volume that contains injected data from multiple sources)
+    TokenExpirationSeconds:  3607
+    ConfigMapName:           kube-root-ca.crt
+    ConfigMapOptional:       <nil>
+    DownwardAPI:             true
+QoS Class:                   BestEffort
+Node-Selectors:              <none>
+Tolerations:                 node.kubernetes.io/not-ready:NoExecute op=Exists for 300s
+                             node.kubernetes.io/unreachable:NoExecute op=Exists for 300s
+Events:
+  Type     Reason       Age                 From               Message
+  ----     ------       ----                ----               -------
+  Normal   Scheduled    19m                 default-scheduler  Successfully assigned default/hostpath-pod to k8s-node02
+  Warning  FailedMount  64s (x17 over 19m)  kubelet            MountVolume.SetUp failed for volume "test-volume" : hostPath type check failed: /test is not a directory
+```
+
+
+无法创建成功，因为当前每个节点上根本没有test目录
+
+
+```bash
+[root@k8s-master01 7]# kubectl delete -f 17.pod.yaml 
+pod "hostpath-pod" deleted
+```
+
+去节点node1,节点node2执行：
+
+```bash
+[root@k8s-node01 pods]# cd ~
+[root@k8s-node01 ~]# mkdir /test
+
+[root@k8s-node01 ~]# hostname > /test/index.html
+```
+
+```bash
+[root@k8s-node02 logs-volume]# cd ~
+[root@k8s-node02 ~]# mkdir /test
+
+[root@k8s-node02 ~]# hostname > /test/index.html
+```
+
+
+
+```bash
+[root@k8s-master01 7]# kubectl apply -f 17.pod.yaml 
+pod/hostpath-pod created
+[root@k8s-master01 7]# kubectl get pod -o wide
+NAME                          READY   STATUS    RESTARTS        AGE     IP              NODE         NOMINATED NODE   READINESS GATES
+hostpath-pod                  1/1     Running   0               9s      10.244.58.220   k8s-node02   <none>           <none>
+
+[root@k8s-master01 7]# kubectl exec -it hostpath-pod -- /bin/sh
+# 
+# cd /test-pd    
+# ls
+index.html
+# cat index.html        
+k8s-node02
+```
+
+
+
 ## 06. pv/pvc
+
+
+存储中的各司其职
+
+### PV/PVC
+
+
+![149](./img/img_149.png)
+
+
+### PV/PVC - 关联条件
+
+
+![150](./img/img_150.png)
+
+
+### PV/PVC - 回收策略
+
+![151](./img/img_151.png)
+
+### PV/PVC - 状态
+
+
+![152](./img/img_152.png)
+
+
+
+### PV/PVC - PVC保护
+
+![153](./img/img_153.png)
+
+
+
+### PV/PVC - StatefulSet - 部署
+
+
+#### 安装NFS服务器
+
+在每个节点上执行：
+
+##### 安装 NFS 服务端软件包
+
+```bash
+yum install -y nfs-utils rpcbind
+```
+
+正常情况下，我们会在一个独立的机器上部署这个NFS服务器，这边为了简单起见，就直接在master01上部署了
+
+在master01节点是执行：
+
+##### 创建共享目录并设置权限
+
+```bash
+mkdir -p /nfsdata
+chmod 666 /nfsdata
+chown nobody /nfsdata
+```
+##### 配置 NFS 共享（/etc/exports）
+
+
+```bash
+cat > /etc/exports <<EOF
+/nfsdata *(rw,no_root_squash,no_all_squash,sync)
+EOF
+```
+
+
+```bash
+[root@k8s-master01 7]# cd /nfsdata/
+[root@k8s-master01 nfsdata]# ls
+[root@k8s-master01 nfsdata]# mkdir {1..10}
+[root@k8s-master01 nfsdata]# ls
+1  10  2  3  4  5  6  7  8  9
+[root@k8s-master01 nfsdata]# echo "1" > 1/index.html
+[root@k8s-master01 nfsdata]# echo "2" > 2/index.html
+[root@k8s-master01 nfsdata]# echo "3" > 3/index.html
+[root@k8s-master01 nfsdata]# echo "4" > 4/index.html
+[root@k8s-master01 nfsdata]# echo "5" > 5/index.html
+[root@k8s-master01 nfsdata]# echo "6" > 6/index.html
+[root@k8s-master01 nfsdata]# echo "7" > 7/index.html
+[root@k8s-master01 nfsdata]# echo "8" > 8/index.html
+[root@k8s-master01 nfsdata]# echo "9" > 9/index.html
+[root@k8s-master01 nfsdata]# echo "10" > 10/index.html
+[root@k8s-master01 nfsdata]# cat 1/index.html 
+1
+```
+
+```bash
+[root@k8s-master01 nfsdata]# vim /etc/exports
+```
+
+改成这样：
+
+```bash
+/nfsdata/1 *(rw,no_root_squash,no_all_squash,sync)
+/nfsdata/2 *(rw,no_root_squash,no_all_squash,sync)
+/nfsdata/3 *(rw,no_root_squash,no_all_squash,sync)
+/nfsdata/4 *(rw,no_root_squash,no_all_squash,sync)
+/nfsdata/5 *(rw,no_root_squash,no_all_squash,sync)
+/nfsdata/6 *(rw,no_root_squash,no_all_squash,sync)
+/nfsdata/7 *(rw,no_root_squash,no_all_squash,sync)
+/nfsdata/8 *(rw,no_root_squash,no_all_squash,sync)
+/nfsdata/9 *(rw,no_root_squash,no_all_squash,sync)
+/nfsdata/10 *(rw,no_root_squash,no_all_squash,sync)
+```
+
+```bash
+systemctl restart rpcbind
+systemctl restart nfs-server
+```
+
+```bash
+[root@k8s-master01 nfsdata]# systemctl restart rpcbind
+systemctl restart nfs-server
+[root@k8s-master01 nfsdata]# showmount -e 192.168.120.11
+Export list for 192.168.120.11:
+/nfsdata/10 *
+/nfsdata/9  *
+/nfsdata/8  *
+/nfsdata/7  *
+/nfsdata/6  *
+/nfsdata/5  *
+/nfsdata/4  *
+/nfsdata/3  *
+/nfsdata/2  *
+/nfsdata/1  *
+```
+
+
+在node1节点上执行：
+
+```bash
+[root@k8s-node01 ~]# mkdir /nfstest
+[root@k8s-node01 ~]# mount -t nfs 192.168.120.11:/nfsdata/1 /nfstest/
+[root@k8s-node01 ~]# cd /nfstest/
+[root@k8s-node01 nfstest]# ls
+index.html
+[root@k8s-node01 nfstest]# cat index.html 
+1
+[root@k8s-node01 nfstest]# echo "tangfire" >> index.html
+[root@k8s-node01 nfstest]# cat index.html 
+1
+tangfire
+```
+
+然后我们再看看master01节点：
+
+```bash
+[root@k8s-master01 nfsdata]# cat 1/index.html 
+1
+tangfire
+```
+
+然后我们在node1节点上执行：
+
+```bash
+[root@k8s-node01 nfstest]# umount /nfstest/
+umount.nfs4: /nfstest: device is busy
+[root@k8s-node01 nfstest]# cd 
+[root@k8s-node01 ~]# umount /nfstest/
+```
+
+
+#### 部署PV
+
+#### pv.yaml
+
+```yaml
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: nfspv1
+spec:
+  capacity:
+    storage: 1Gi
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Recycle
+  storageClassName: nfs
+  nfs:
+    path: /nfsdata/1
+    server: 192.168.120.11
+
+---
+
+
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: nfspv2
+spec:
+  capacity:
+    storage: 0.9Gi
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Recycle
+  storageClassName: nfs
+  nfs:
+    path: /nfsdata/2
+    server: 192.168.120.11
+
+---
+
+
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: nfspv3
+spec:
+  capacity:
+    storage: 1.2Gi
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Recycle
+  storageClassName: nfs
+  nfs:
+    path: /nfsdata/3
+    server: 192.168.120.11
+
+---
+
+
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: nfspv4
+spec:
+  capacity:
+    storage: 1Gi
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Recycle
+  storageClassName: nfs
+  nfs:
+    path: /nfsdata/4
+    server: 192.168.120.11
+
+---
+
+
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: nfspv5
+spec:
+  capacity:
+    storage: 1Gi
+  accessModes:
+    - ReadWriteMany
+  persistentVolumeReclaimPolicy: Recycle
+  storageClassName: nfs
+  nfs:
+    path: /nfsdata/5
+    server: 192.168.120.11
+
+---
+
+
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: nfspv6
+spec:
+  capacity:
+    storage: 1Gi
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Recycle
+  storageClassName: nfs1
+  nfs:
+    path: /nfsdata/6
+    server: 192.168.120.11
+
+---
+
+
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: nfspv7
+spec:
+  capacity:
+    storage: 1Gi
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: nfs
+  nfs:
+    path: /nfsdata/7
+    server: 192.168.120.11
+
+
+```
+
+
+```bash
+[root@k8s-master01 18]# kubectl apply -f pv.yaml 
+persistentvolume/nfspv1 created
+persistentvolume/nfspv2 created
+persistentvolume/nfspv3 created
+persistentvolume/nfspv4 created
+persistentvolume/nfspv5 created
+persistentvolume/nfspv6 created
+persistentvolume/nfspv7 created
+
+[root@k8s-master01 18]# kubectl get pv
+NAME     CAPACITY         ACCESS MODES   RECLAIM POLICY   STATUS      CLAIM   STORAGECLASS   VOLUMEATTRIBUTESCLASS   REASON   AGE
+nfspv1   1Gi              RWO            Recycle          Available           nfs            <unset>                          25s
+nfspv2   966367641600m    RWO            Recycle          Available           nfs            <unset>                          25s
+nfspv3   1288490188800m   RWO            Recycle          Available           nfs            <unset>                          25s
+nfspv4   1Gi              RWO            Recycle          Available           nfs            <unset>                          25s
+nfspv5   1Gi              RWX            Recycle          Available           nfs            <unset>                          25s
+nfspv6   1Gi              RWO            Recycle          Available           nfs1           <unset>                          25s
+nfspv7   1Gi              RWO            Retain           Available           nfs            <unset>                          25s
+```
+
+
+
+
+
+
+
+
+
+#### 创建服务并使用PVC
+
+
+#### statefulSet.yaml
+
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: nginx
+  labels:
+    app: nginx
+spec:
+  ports:
+  - port: 80
+    name: web
+  clusterIP: None  # Headless Service 标识
+  selector:
+    app: nginx
+
+---
+
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: web
+spec:
+  serviceName: "nginx"
+  replicas: 3
+  selector:
+    matchLabels:
+      app: nginx
+  template:
+    metadata:
+      labels:
+        app: nginx
+    spec:
+      containers:
+        - name: nginx
+          image: nginx:alpine  # 使用官方Nginx镜像替代私有镜像
+          ports:
+            - containerPort: 80
+              name: web
+          volumeMounts:
+            - name: www
+              mountPath: /usr/share/nginx/html  # 调整为标准Nginx路径
+  volumeClaimTemplates:
+    - metadata:
+        name: www
+      spec:
+        accessModes: [ "ReadWriteOnce" ]
+        storageClassName: "nfs"
+        resources:
+          requests:
+            storage: 1Gi
+```
+
+
+```bash
+[root@k8s-master01 18]# kubectl apply -f statefulSet.yaml 
+service/nginx created
+statefulset.apps/web created
+[root@k8s-master01 18]# kubectl get pod
+NAME    READY   STATUS    RESTARTS   AGE
+web-0   1/1     Running   0          105s
+web-1   1/1     Running   0          103s
+web-2   1/1     Running   0          101s
+```
+
+
+#### 查看k8s中DNS服务器的VIP
+
+在 Kubernetes 中，DNS 服务的 VIP（虚拟 IP）通常是 **CoreDNS** 或 **kube-dns** 服务的 ClusterIP。以下是查看方法：
+
+---
+
+### **1. 确认 DNS 服务名称**
+```bash
+kubectl get svc -n kube-system | grep -E 'kube-dns|CoreDNS'
+```
+输出示例：
+```
+NAME       TYPE        CLUSTER-IP     PORT(S)
+coredns    ClusterIP   10.96.0.10     53/UDP,53/TCP
+```
+- **`10.96.0.10`** 就是 DNS 服务的 VIP（ClusterIP）。
+
+---
+
+### **2. 查看 DNS 服务的详细配置**
+```bash
+kubectl describe svc coredns -n kube-system
+```
+关键输出：
+```
+IP:                       10.96.0.10
+Port:                      dns  53/UDP
+TargetPort:                53/UDP
+Endpoints:                 10.244.0.5:53,10.244.0.6:53
+```
+- **`IP: 10.96.0.10`** 是 VIP（所有 DNS 请求都会发往此 IP）。
+- **`Endpoints`** 是实际运行 CoreDNS 的 Pod IP。
+
+---
+
+### **3. 查看 Pod 的 DNS 配置**
+```bash
+kubectl exec -it <任意Pod名称> -- cat /etc/resolv.conf
+```
+输出示例：
+```
+nameserver 10.96.0.10
+search default.svc.cluster.local svc.cluster.local cluster.local
+```
+- **`nameserver 10.96.0.10`** 就是集群的 DNS VIP。
+
+---
+
+### **4. 直接测试 DNS 解析**
+```bash
+# 进入一个临时Pod测试
+kubectl run -it --rm --image=busybox:latest test --restart=Never -- nslookup kubernetes.default
+```
+输出示例：
+```
+Server:    10.96.0.10
+Address 1: 10.96.0.10 kube-dns.kube-system.svc.cluster.local
+```
+- **`Server: 10.96.0.10`** 即为 DNS 服务的 VIP。
+
+---
+
+### **5. 特殊情况说明**
+1. **如果使用自定义 DNS**：
+  - 检查 `kubelet` 配置中的 `--cluster-dns` 参数：
+    ```bash
+    ps aux | grep kubelet | grep cluster-dns
+    ```
+2. **如果 VIP 无法访问**：
+  - 检查 CoreDNS Pod 是否正常运行：
+    ```bash
+    kubectl get pods -n kube-system -l k8s-app=kube-dns
+    ```
+
+---
+
+### **总结**
+| 项目               | 典型值          | 查看方式                      |
+|--------------------|----------------|-----------------------------|
+| **DNS VIP**        | `10.96.0.10`   | `kubectl get svc -n kube-system` |
+| **DNS 解析测试**   | `nslookup`     | 临时 Pod 测试                  |
+| **自定义配置**     | `kubelet` 参数 | 检查节点服务配置                |
+
+
+
+
+---
+
+```bash
+[root@k8s-master01 18]# kubectl get pod
+NAME    READY   STATUS    RESTARTS   AGE
+web-0   1/1     Running   0          105s
+web-1   1/1     Running   0          103s
+web-2   1/1     Running   0          101s
+[root@k8s-master01 18]# 
+[root@k8s-master01 18]# kubectl get svc
+NAME         TYPE        CLUSTER-IP   EXTERNAL-IP   PORT(S)   AGE
+kubernetes   ClusterIP   10.0.0.1     <none>        443/TCP   8d
+nginx        ClusterIP   None         <none>        80/TCP    3m51s
+[root@k8s-master01 18]# kubectl get endpoints
+NAME         ENDPOINTS                                            AGE
+kubernetes   192.168.120.11:6443                                  8d
+nginx        10.244.58.222:80,10.244.85.254:80,10.244.85.255:80   4m10s
+[root@k8s-master01 18]# kubectl get svc -n kube-system | grep -E 'kube-dns|CoreDNS'
+kube-dns       ClusterIP   10.0.0.10      <none>        53/UDP,53/TCP,9153/TCP   8d
+[root@k8s-master01 18]# dig -t A nginx.default.svc.cluster.local. @10.0.0.10
+
+; <<>> DiG 9.16.23-RH <<>> -t A nginx.default.svc.cluster.local. @10.0.0.10
+;; global options: +cmd
+;; Got answer:
+;; WARNING: .local is reserved for Multicast DNS
+;; You are currently testing what happens when an mDNS query is leaked to DNS
+;; ->>HEADER<<- opcode: QUERY, status: NOERROR, id: 11981
+;; flags: qr aa rd; QUERY: 1, ANSWER: 3, AUTHORITY: 0, ADDITIONAL: 1
+;; WARNING: recursion requested but not available
+
+;; OPT PSEUDOSECTION:
+; EDNS: version: 0, flags:; udp: 4096
+; COOKIE: 96df3d5dbd1006f9 (echoed)
+;; QUESTION SECTION:
+;nginx.default.svc.cluster.local. IN	A
+
+;; ANSWER SECTION:
+nginx.default.svc.cluster.local. 30 IN	A	10.244.85.255
+nginx.default.svc.cluster.local. 30 IN	A	10.244.58.222
+nginx.default.svc.cluster.local. 30 IN	A	10.244.85.254
+
+;; Query time: 56 msec
+;; SERVER: 10.0.0.10#53(10.0.0.10)
+;; WHEN: Sat Jul 12 19:21:18 CST 2025
+;; MSG SIZE  rcvd: 213
+
+[root@k8s-master01 18]# kubectl get pod -o wide
+NAME    READY   STATUS    RESTARTS   AGE     IP              NODE         NOMINATED NODE   READINESS GATES
+web-0   1/1     Running   0          8m57s   10.244.85.254   k8s-node01   <none>           <none>
+web-1   1/1     Running   0          8m55s   10.244.58.222   k8s-node02   <none>           <none>
+web-2   1/1     Running   0          8m53s   10.244.85.255   k8s-node01   <none>           <none>
+```
+
+无头服务会将当前我们的标签选择器匹配到的pod，添加到当前的DNS解析结果里去
+
+
+
+
+```bash
+[root@k8s-master01 18]# kubectl get statefulSet
+NAME   READY   AGE
+web    3/3     12m
+[root@k8s-master01 18]# kubectl scale statefulSet web --replicas=10
+statefulset.apps/web scaled
+[root@k8s-master01 18]# kubectl get pod
+NAME    READY   STATUS    RESTARTS   AGE
+web-0   1/1     Running   0          12m
+web-1   1/1     Running   0          12m
+web-2   1/1     Running   0          12m
+web-3   1/1     Running   0          5s
+web-4   0/1     Pending   0          3s
+
+[root@k8s-master01 18]# kubectl describe pod web-4
+Name:             web-4
+Namespace:        default
+Priority:         0
+Service Account:  default
+Node:             <none>
+Labels:           app=nginx
+                  apps.kubernetes.io/pod-index=4
+                  controller-revision-hash=web-6578c54df4
+                  statefulset.kubernetes.io/pod-name=web-4
+Annotations:      <none>
+Status:           Pending
+IP:               
+IPs:              <none>
+Controlled By:    StatefulSet/web
+Containers:
+  nginx:
+    Image:        nginx:alpine
+    Port:         80/TCP
+    Host Port:    0/TCP
+    Environment:  <none>
+    Mounts:
+      /usr/share/nginx/html from www (rw)
+      /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-wzkdn (ro)
+Conditions:
+  Type           Status
+  PodScheduled   False 
+Volumes:
+  www:
+    Type:       PersistentVolumeClaim (a reference to a PersistentVolumeClaim in the same namespace)
+    ClaimName:  www-web-4
+    ReadOnly:   false
+  kube-api-access-wzkdn:
+    Type:                    Projected (a volume that contains injected data from multiple sources)
+    TokenExpirationSeconds:  3607
+    ConfigMapName:           kube-root-ca.crt
+    ConfigMapOptional:       <nil>
+    DownwardAPI:             true
+QoS Class:                   BestEffort
+Node-Selectors:              <none>
+Tolerations:                 node.kubernetes.io/not-ready:NoExecute op=Exists for 300s
+                             node.kubernetes.io/unreachable:NoExecute op=Exists for 300s
+Events:
+  Type     Reason            Age                    From               Message
+  ----     ------            ----                   ----               -------
+  Warning  FailedScheduling  2m24s (x2 over 7m47s)  default-scheduler  0/3 nodes are available: pod has unbound immediate PersistentVolumeClaims. preemption: 0/3 nodes are available: 3 Preemption is not helpful for scheduling.
+[root@k8s-master01 18]# kubectl get pv
+NAME     CAPACITY         ACCESS MODES   RECLAIM POLICY   STATUS      CLAIM               STORAGECLASS   VOLUMEATTRIBUTESCLASS   REASON   AGE
+nfspv1   1Gi              RWO            Recycle          Bound       default/www-web-1   nfs            <unset>                          34m
+nfspv2   966367641600m    RWO            Recycle          Available                       nfs            <unset>                          34m
+nfspv3   1288490188800m   RWO            Recycle          Bound       default/www-web-3   nfs            <unset>                          34m
+nfspv4   1Gi              RWO            Recycle          Bound       default/www-web-2   nfs            <unset>                          34m
+nfspv5   1Gi              RWX            Recycle          Available                       nfs            <unset>                          34m
+nfspv6   1Gi              RWO            Recycle          Available                       nfs1           <unset>                          34m
+nfspv7   1Gi              RWO            Retain           Bound       default/www-web-0   nfs            <unset>                          34m
+```
+
+
+```bash
+[root@k8s-master01 18]# kubectl get pod -o wide
+NAME    READY   STATUS    RESTARTS   AGE   IP              NODE         NOMINATED NODE   READINESS GATES
+web-0   1/1     Running   0          32m   10.244.85.254   k8s-node01   <none>           <none>
+web-1   1/1     Running   0          32m   10.244.58.222   k8s-node02   <none>           <none>
+web-2   1/1     Running   0          32m   10.244.85.255   k8s-node01   <none>           <none>
+web-3   1/1     Running   0          20m   10.244.58.221   k8s-node02   <none>           <none>
+web-4   0/1     Pending   0          20m   <none>          <none>       <none>           <none>
+[root@k8s-master01 18]# curl 10.244.85.254
+7
+[root@k8s-master01 18]# kubectl get pvc
+NAME        STATUS    VOLUME   CAPACITY         ACCESS MODES   STORAGECLASS   VOLUMEATTRIBUTESCLASS   AGE
+www-web-0   Bound     nfspv7   1Gi              RWO            nfs            <unset>                 34m
+www-web-1   Bound     nfspv1   1Gi              RWO            nfs            <unset>                 33m
+www-web-2   Bound     nfspv4   1Gi              RWO            nfs            <unset>                 33m
+www-web-3   Bound     nfspv3   1288490188800m   RWO            nfs            <unset>                 21m
+www-web-4   Pending                                            nfs            <unset>                 21m
+```
+
+
+
+```bash
+[root@k8s-master01 18]# kubectl exec -it web-0 -- /bin/sh
+/ # cd /usr/share/nginx/html
+/usr/share/nginx/html # ls
+index.html
+/usr/share/nginx/html # echo "tangfire" >> index.html
+/usr/share/nginx/html # exit
+[root@k8s-master01 18]# curl 10.244.85.254
+7
+tangfire
+[root@k8s-master01 18]# kubectl delete pod web-0
+pod "web-0" deleted
+[root@k8s-master01 18]# kubectl get pod -o wide
+NAME    READY   STATUS    RESTARTS   AGE   IP              NODE         NOMINATED NODE   READINESS GATES
+web-0   1/1     Running   0          11s   10.244.85.192   k8s-node01   <none>           <none>
+web-1   1/1     Running   0          37m   10.244.58.222   k8s-node02   <none>           <none>
+web-2   1/1     Running   0          37m   10.244.85.255   k8s-node01   <none>           <none>
+web-3   1/1     Running   0          26m   10.244.58.221   k8s-node02   <none>           <none>
+web-4   0/1     Pending   0          26m   <none>          <none>       <none>           <none>
+[root@k8s-master01 18]# curl 10.244.85.192
+7
+tangfire
+```
+
+
+
+![154](./img/img_154.png)
+
+
+```bash
+[root@k8s-master01 18]# kubectl delete -f statefulSet.yaml 
+service "nginx" deleted
+statefulset.apps "web" deleted
+[root@k8s-master01 18]# kubectl get pod
+No resources found in default namespace.
+[root@k8s-master01 18]# kubectl get pv
+NAME     CAPACITY         ACCESS MODES   RECLAIM POLICY   STATUS      CLAIM               STORAGECLASS   VOLUMEATTRIBUTESCLASS   REASON   AGE
+nfspv1   1Gi              RWO            Recycle          Bound       default/www-web-1   nfs            <unset>                          62m
+nfspv2   966367641600m    RWO            Recycle          Available                       nfs            <unset>                          62m
+nfspv3   1288490188800m   RWO            Recycle          Bound       default/www-web-3   nfs            <unset>                          62m
+nfspv4   1Gi              RWO            Recycle          Bound       default/www-web-2   nfs            <unset>                          62m
+nfspv5   1Gi              RWX            Recycle          Available                       nfs            <unset>                          62m
+nfspv6   1Gi              RWO            Recycle          Available                       nfs1           <unset>                          62m
+nfspv7   1Gi              RWO            Retain           Bound       default/www-web-0   nfs            <unset>                          62m
+[root@k8s-master01 18]# kubectl get pvc
+NAME        STATUS    VOLUME   CAPACITY         ACCESS MODES   STORAGECLASS   VOLUMEATTRIBUTESCLASS   AGE
+www-web-0   Bound     nfspv7   1Gi              RWO            nfs            <unset>                 48m
+www-web-1   Bound     nfspv1   1Gi              RWO            nfs            <unset>                 48m
+www-web-2   Bound     nfspv4   1Gi              RWO            nfs            <unset>                 48m
+www-web-3   Bound     nfspv3   1288490188800m   RWO            nfs            <unset>                 36m
+www-web-4   Pending                                            nfs            <unset>                 36m
+[root@k8s-master01 18]# kubectl apply -f statefulSet.yaml 
+service/nginx created
+statefulset.apps/web created
+[root@k8s-master01 18]# kubectl get pod -o wide
+NAME    READY   STATUS    RESTARTS   AGE   IP              NODE         NOMINATED NODE   READINESS GATES
+web-0   1/1     Running   0          9s    10.244.58.223   k8s-node02   <none>           <none>
+web-1   1/1     Running   0          8s    10.244.85.193   k8s-node01   <none>           <none>
+web-2   1/1     Running   0          6s    10.244.58.225   k8s-node02   <none>           <none>
+[root@k8s-master01 18]# curl 10.244.58.223
+7
+tangfire
+```
+
+
+```bash
+[root@k8s-master01 18]# kubectl delete -f statefulSet.yaml 
+service "nginx" deleted
+statefulset.apps "web" deleted
+[root@k8s-master01 18]# kubectl delete pvc --all
+persistentvolumeclaim "www-web-0" deleted
+persistentvolumeclaim "www-web-1" deleted
+persistentvolumeclaim "www-web-2" deleted
+persistentvolumeclaim "www-web-3" deleted
+persistentvolumeclaim "www-web-4" deleted
+[root@k8s-master01 18]# kubectl get pv
+NAME     CAPACITY         ACCESS MODES   RECLAIM POLICY   STATUS      CLAIM               STORAGECLASS   VOLUMEATTRIBUTESCLASS   REASON   AGE
+nfspv1   1Gi              RWO            Recycle          Released    default/www-web-1   nfs            <unset>                          68m
+nfspv2   966367641600m    RWO            Recycle          Available                       nfs            <unset>                          68m
+nfspv3   1288490188800m   RWO            Recycle          Failed      default/www-web-3   nfs            <unset>                          68m
+nfspv4   1Gi              RWO            Recycle          Failed      default/www-web-2   nfs            <unset>                          68m
+nfspv5   1Gi              RWX            Recycle          Available                       nfs            <unset>                          68m
+nfspv6   1Gi              RWO            Recycle          Available                       nfs1           <unset>                          68m
+nfspv7   1Gi              RWO            Retain           Released    default/www-web-0   nfs            <unset>                          68m
+```
+
+---
+
+#### PersistentVolume (PV) 从 `Released` 状态恢复为 `Available` 状态
+
+
+在 Kubernetes 中，将 PersistentVolume (PV) 从 `Released` 状态恢复为 `Available` 状态，需要手动清理其绑定关系。以下是具体操作步骤和代码示例：
+
+---
+
+### **1. 查看当前 PV 状态**
+```bash
+kubectl get pv
+```
+输出示例：
+```
+NAME      CAPACITY  STATUS      CLAIM             STORAGECLASS
+pv-nfs    1Gi       Released    default/www-web-0 nfs
+```
+
+---
+
+### **2. 手动释放 PV（关键步骤）**
+编辑 PV 配置，删除 `claimRef` 字段（这是导致状态为 Released 的根源）：
+```bash
+kubectl edit pv <pv-name>
+```
+找到并删除以下部分：
+```yaml
+spec:
+  claimRef:
+    apiVersion: v1
+    kind: PersistentVolumeClaim
+    name: www-web-0  # 原绑定的PVC名称
+    namespace: default
+```
+
+---
+
+### **3. 强制回收 PV（如果仍不生效）**
+如果 PV 的回收策略是 `Retain`，需手动清理数据并重置状态：
+```bash
+kubectl patch pv <pv-name> -p '{"spec":{"claimRef":null}}'
+```
+
+---
+
+### **4. 验证状态变更**
+```bash
+kubectl get pv <pv-name>
+```
+预期输出：
+```
+NAME      CAPACITY  STATUS      CLAIM  STORAGECLASS
+pv-nfs    1Gi       Available          nfs
+```
+
+---
+
+### **完整操作示例**
+假设 PV 名称为 `pv-nfs`：
+```bash
+# 1. 查看PV
+kubectl get pv pv-nfs -o yaml
+
+# 2. 解除绑定
+kubectl patch pv pv-nfs --type=json -p '[{"op":"remove","path":"/spec/claimRef"}]'
+
+# 3. 验证
+kubectl get pv pv-nfs
+```
+
+---
+
+### **根本原因分析**
+| 状态 | 触发条件 | 解决方案 |
+|------|----------|----------|
+| `Released` | PVC 被删除，但 PV 仍保留绑定记录 | 删除 `claimRef` |
+| `Failed` | 存储后端故障 | 检查存储系统日志 |
+
+---
+
+### **注意事项**
+1. **数据安全**：
+  - 如果 PV 中原有数据重要，操作前先备份（尤其是回收策略为 `Delete` 时）。
+2. **StatefulSet 关联**：
+  - 确保对应的 StatefulSet 已删除或缩容，否则新 PVC 会再次绑定。
+3. **NFS 存储**：
+  - 如果是 NFS PV，需确保服务器共享目录 `/data/nfs` 已清空或可复用。
+
+
+---
+
+### PV/PVC - StatefulSet - 特性
+
+
+![155](./img/img_155.png)
+
 
 
 ## 07. storageClass
 
+一种动态的申请存储的机制
+
+
+![156](./img/img_156.png)
+
+
+### storageClass概念
+
+
+![157](./img/img_157.png)
+
+
+### nfs-client-provisioner
+
+![158](./img/img_158.png)
+
+
+#### 搭建NFS服务器
+
+略，上文已经搭建
+
+#### 部署nfs-client-provisioner
+
+```bash
+[root@k8s-master01 18]# vim /etc/exports
+```
+
+
+加入这个：
+
+```bash
+/nfsdata/share *(rw,no_root_squash,no_all_squash,sync)
+```
+
+```bash
+[root@k8s-master01 18]# mkdir -p /nfsdata/share
+[root@k8s-master01 18]# chown -R nobody /nfsdata/share/
+[root@k8s-master01 18]# systemctl restart nfs-server
+[root@k8s-master01 18]# systemctl enable nfs-server
+[root@k8s-master01 18]# systemctl enable rpcbind
+
+[root@k8s-master01 18]# showmount -e 192.168.120.11
+Export list for 192.168.120.11:
+/nfsdata/share *
+/nfsdata/10    *
+/nfsdata/9     *
+/nfsdata/8     *
+/nfsdata/7     *
+/nfsdata/6     *
+/nfsdata/5     *
+/nfsdata/4     *
+/nfsdata/3     *
+/nfsdata/2     *
+/nfsdata/1     *
+```
+
+#### 部署nfs-client-provisioner
+
+#### deployment.yaml
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nfs-client-provisioner
+  namespace: nfs-storageclass
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nfs-client-provisioner
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: nfs-client-provisioner
+    spec:
+      serviceAccountName: nfs-client-provisioner
+      containers:
+      - name: nfs-client-provisioner
+        image: registry.k8s.io/sig-storage/nfs-subdir-external-provisioner:v4.0.2
+        volumeMounts:
+        - name: nfs-client-root
+          mountPath: /persistentvolumes
+        env:
+        - name: PROVISIONER_NAME
+          value: k8s-sigs.io/nfs-subdir-external-provisioner
+        - name: NFS_SERVER
+          value: 192.168.120.11
+        - name: NFS_PATH
+          value: /nfsdata/share
+      volumes:
+      - name: nfs-client-root
+        nfs:
+          server: 192.168.120.11
+          path: /nfsdata/share
+
+```
+
+#### rbac.yaml
+
+```yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: nfs-client-provisioner
+  namespace: nfs-storageclass
+---
+
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: nfs-client-provisioner-runner
+rules:
+- apiGroups: [""]
+  resources: ["nodes"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: [""]
+  resources: ["persistentvolumes"]
+  verbs: ["get", "list", "watch", "create", "delete"]
+- apiGroups: [""]
+  resources: ["persistentvolumeclaims"]
+  verbs: ["get", "list", "watch", "update"]
+- apiGroups: ["storage.k8s.io"]
+  resources: ["storageclasses"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: [""]
+  resources: ["events"]
+  verbs: ["create", "update", "patch"]
+---
+# ClusterRoleBinding 定义
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: run-nfs-client-provisioner
+subjects:
+- kind: ServiceAccount
+  name: nfs-client-provisioner
+  namespace: nfs-storageclass
+roleRef:
+  kind: ClusterRole
+  name: nfs-client-provisioner-runner
+  apiGroup: rbac.authorization.k8s.io
+---
+
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: leader-locking-nfs-client-provisioner
+  namespace: nfs-storageclass
+rules:
+- apiGroups: [""]
+  resources: ["endpoints"]
+  verbs: ["get", "list", "watch", "create", "update", "patch"]
+---
+# Leader Election RoleBinding 定义
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: leader-locking-nfs-client-provisioner
+  namespace: nfs-storageclass
+subjects:
+- kind: ServiceAccount
+  name: nfs-client-provisioner
+  namespace: nfs-storageclass
+roleRef:
+  kind: Role
+  name: leader-locking-nfs-client-provisioner
+  apiGroup: rbac.authorization.k8s.io
+```
+
+
+#### storageclass.yaml
+
+```yaml
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: nfs-client
+  namespace: nfs-storageclass
+provisioner: k8s-sigs.io/nfs-subdir-external-provisioner
+parameters:
+  pathPattern: "${.PVC.namespace}/${.PVC.name}"
+  onDelete: "delete"
+```
+
+
+
+
+
+#### 创建名字空间
+
+```bash
+kubectl create ns nfs-storageclass
+```
+
+```bash
+[root@k8s-master01 19]# vim deployment.yaml
+[root@k8s-master01 19]# 
+[root@k8s-master01 19]# vim rbac.yaml
+[root@k8s-master01 19]# 
+[root@k8s-master01 19]# vim storageclass.yaml
+[root@k8s-master01 19]# 
+[root@k8s-master01 19]# kubectl apply -f ../19/
+clusterrole.rbac.authorization.k8s.io/nfs-client-provisioner-runner created
+clusterrolebinding.rbac.authorization.k8s.io/run-nfs-client-provisioner created
+storageclass.storage.k8s.io/nfs-client created
+Error from server (NotFound): error when creating "../19/deployment.yaml": namespaces "nfs-storageclass" not found
+Error from server (NotFound): error when creating "../19/rbac.yaml": namespaces "nfs-storageclass" not found
+Error from server (NotFound): error when creating "../19/rbac.yaml": namespaces "nfs-storageclass" not found
+Error from server (NotFound): error when creating "../19/rbac.yaml": namespaces "nfs-storageclass" not found
+
+[root@k8s-master01 19]# kubectl create ns nfs-storageclass
+namespace/nfs-storageclass created
+[root@k8s-master01 19]# kubectl apply -f ../19/
+deployment.apps/nfs-client-provisioner created
+serviceaccount/nfs-client-provisioner created
+clusterrole.rbac.authorization.k8s.io/nfs-client-provisioner-runner unchanged
+clusterrolebinding.rbac.authorization.k8s.io/run-nfs-client-provisioner unchanged
+role.rbac.authorization.k8s.io/leader-locking-nfs-client-provisioner created
+rolebinding.rbac.authorization.k8s.io/leader-locking-nfs-client-provisioner created
+storageclass.storage.k8s.io/nfs-client unchanged
+```
+
+#### 测试Pod
+
+```yaml
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 ## 08. 插曲
+
+
 
